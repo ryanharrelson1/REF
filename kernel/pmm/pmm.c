@@ -1,18 +1,14 @@
 #include "pmm.h"
 #include "../alarm/panic.h"
-#include "../memset.h"
 #include "../consol/serial.h"
-
-#define PHYS_TO_VIRT(p) ((void*)((uintptr_t)(p) + KERNEL_VMA))
-
-#define KERNEL_VMA 0xC0000000
-
 
 #define PAGE_SIZE 4096
 
 extern uint8_t _kernel_end;
 
 uintptr_t kernel_end_addr = (uintptr_t)&_kernel_end;
+
+
 uint64_t bitmap_phys_start = 0;
 
 uintptr_t bitmap_phys_end = 0;
@@ -24,7 +20,6 @@ uintptr_t bitmap_phys_end = 0;
 static uint64_t memory_start = 0;
 static uint64_t memory_end = 0;
 static size_t total_pages = 0;
-
 
 
 
@@ -59,7 +54,7 @@ void pmm_init(struct mem_region* regions, size_t region_count){
 
     bitmap_phys_start = (kernel_end_addr + PAGE_SIZE -1) & ~(PAGE_SIZE - 1);
     bitmap_phys_end = bitmap_phys_start + bitmap_size;
-    bitmap = (uint8_t*)PHYS_TO_VIRT(bitmap_phys_start);
+    bitmap = (uint8_t*)bitmap_phys_start;
 
     memsets(bitmap, 0xFF, bitmap_size);
 
@@ -84,39 +79,36 @@ void pmm_init(struct mem_region* regions, size_t region_count){
   bitmap_set(0);  
 
 
-
 }
 
 
 uintptr_t pmm_alloc_page(void) {
+    write_serial_string("pmm_alloc_page: start\n");
 
-    size_t *total_pages_virt = PHYS_TO_VIRT(&total_pages);
-
-
-
-    for (size_t i = 0; i < total_pages_virt; i++) {
-
-
-        
+    for (size_t i = 0; i < total_pages; i++) {
     
         if (!bitmap_test(i)) {
-
-
+            write_serial_string("pmm_alloc_page: found free page index: ");
+            serial_write_hex32((uint32_t)i);
+            write_serial_string("\n");
 
             bitmap_set(i);
 
             uintptr_t addr = page_to_addr(i);
+            write_serial_string("pmm_alloc_page: allocated page phys addr: 0x");
+            serial_write_hex32((uint32_t)addr);
+            write_serial_string("\n");
 
-
-
+            write_serial_string("pmm_alloc_page: zeroing page memory\n");
+            write_serial_string("pmm_alloc_page: memset done\n");
 
             return addr;
         }
     }
 
+    write_serial_string("pmm_alloc_page: out of memory panic\n");
     panic("PMM: Out of physical memory!");
     return 0;
-    
 }
 
 
@@ -165,8 +157,7 @@ static inline void bitmap_clear(size_t index) {
 
 static inline int bitmap_test(size_t index) {
      if (index >= total_pages) return 1; // Treat out-of-range as allocated/reserved
-         uint8_t* virt_bitmap = (uint8_t*)PHYS_TO_VIRT((uintptr_t)bitmap);
-    return virt_bitmap[index / 8] & (1 << (index % 8));
+    return bitmap[index / 8] & (1 << (index % 8));
 }
 
 static inline uintptr_t page_to_addr(size_t page) {
@@ -205,10 +196,6 @@ static inline void pmm_self_test(void) {
     if (page == NULL) {
         panic("PMM self test failed: could not allocate page");
     }
-
-    write_serial_string("alloc page at:");
-    serial_write_hex32(page);
-    
 
     size_t free_after_alloc = pmm_get_free_page_count();
     if (free_after_alloc != free_before - 1) {

@@ -10,7 +10,6 @@
 
 
 
-
     
 
 
@@ -22,7 +21,7 @@ void kernel_main() {
     parse_memory_map(mb_info_phys);
   page_high_init();
 
-  void* page =  pmm_alloc_page();
+  //void* page =  pmm_alloc_page();
 
  
 
