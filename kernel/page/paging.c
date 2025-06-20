@@ -2,16 +2,18 @@
 #include "paging.h"
 #include "../consol/serial.h"
 
+
 extern uint32_t page_dir[];
-extern uint32_t page_table[];
+extern uint32_t page_table_low[];
 
-
-uint32_t* page_dir_virt = (uint32_t*)PHYS_TO_VIRT((uintptr_t)page_dir);
-uint32_t* page_table_virt = (uint32_t*)PHYS_TO_VIRT((uintptr_t)page_table);
 
 static inline void flush_tlb_single(uintptr_t addr);
 static inline void flush_tlb(void);
 void page_high_init() {
+
+
+
+
     // Map the physical address of page_dir into its high-half virtual address
     uint32_t* pd = (uint32_t*)PHYS_TO_VIRT((uintptr_t)page_dir);
 

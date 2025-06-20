@@ -2,27 +2,23 @@
 [extern kernel_main]
 [global _start]
 
-
 section .multiboot2
 align 8
 multiboot_header_start:
-    dd 0xE85250D6              ; magic
-    dd 0                       ; architecture (i386)
-    dd multiboot_header_end - multiboot_header_start ; total header length
-    dd -(0xE85250D6 + 0 + (multiboot_header_end - multiboot_header_start)) ; checksum
+    dd 0xE85250D6
+    dd 0
+    dd multiboot_header_end - multiboot_header_start
+    dd -(0xE85250D6 + 0 + (multiboot_header_end - multiboot_header_start))
 
-    ; Memory map tag (type 6)
-    dw 6                       ; tag type
-    dw 0                       ; flags
-    dd 24                      ; tag size (header + payload)
-    dd 20                      ; entry size
-    dd 0                       ; entry version
+    dw 6
+    dw 0
+    dd 24
+    dd 20
+    dd 0
 
-    ; End tag
     dw 0
     dw 0
-    dd 8                       ; end tag size
-
+    dd 8
 multiboot_header_end:
 
 section .bss
@@ -31,81 +27,94 @@ stack_bottom:
     resb 16384
 stack_top:
 
-
-section .bss
+section .boot
 global page_dir
 align 4096
-page_dir:    resd 1024       ; reserve 4KB for page directory
-global page_table
+page_dir: resd 1024
+
+global page_table_low
+page_table_low: resd 1024
+
+global page_table_high
+page_table_high: resd 1024
+
+global page_table_vga
 align 4096
-page_table:  resd 1024       ; reserve 4KB for one page table (if needed)
+page_table_vga: resd 1024
 
-
-
-section .text
+section .boot
 
 _start:
-    cli                     ; disable interrupts
+    cli
 
+    call setup_paging
 
-    ; Setup paging (your existing routine)
-    call setup_paging       
-
-    ; Load CR3 with physical address of page directory
-    lea eax, [page_dir]
+    mov eax, page_dir
     mov cr3, eax
 
-    ; Disable PSE (just like your code)
-    mov eax, cr4
-    and eax, 0xFFFFFFEF
-    mov cr4, eax
-
-    ; Enable paging by setting CR0.PG (bit 31)
+    ; Enable paging (set PG bit in CR0)
     mov eax, cr0
     or eax, 0x80000000
     mov cr0, eax
 
-    ; Setup stack pointer to the top of your stack
-    mov esp, 0xC0107000 
+    mov esp, stack_top
 
-     mov eax, kernel_main
-    add eax, 0xC0000000
+    jmp 0xC0000000
 
-    jmp eax
+
+
 
 .hang:
     hlt
     jmp .hang
 
-
-
 setup_paging:
- push ebx               ; Save EBX!
+    ; Zero page directory (4KB)
     mov edi, page_dir
     mov ecx, 1024
     xor eax, eax
     rep stosd
 
-    mov esi, 0
-    mov edi, page_table
+    ; Setup identity map for first 4MB (1024 entries of 4KB)
+    mov edi, page_table_low
     mov ecx, 1024
+    xor esi, esi
 
-.fill_page_table:
-    mov eax, esi
-    or eax, 0x03
+.fill_table_low:
+    mov eax, esi          ; phys addr
+    or eax, 0x3           ; present + rw
     mov [edi], eax
     add esi, 0x1000
     add edi, 4
-    loop .fill_page_table
+    loop .fill_table_low
 
-    mov eax, page_table
-    or eax, 0x03
+    mov edi, page_table_high
+    mov ecx, 1024
+    mov esi, 0x00110000
+
+.fill_table_high:
+    mov eax, esi
+    or eax, 0x3
+    mov [edi], eax
+    add esi, 0x1000
+    add edi, 4
+    loop .fill_table_high
+
+    mov eax, page_table_low
+    or eax, 0x3
     mov [page_dir], eax
 
+    mov eax, page_table_high
+    or eax, 0x3
     mov edi, page_dir
-    mov ebx, 768
-    mov [edi + ebx*4], eax
+    add edi, 768*4
+    mov [edi], eax
 
-     pop ebx               ; Restore EBX!
+    mov eax, 0x000B8000 | 0x3        ; physical VGA + present+RW
+    mov edi, page_table_high
+    add edi, 952 * 4                 ; 952th entry in kernel's page table
+    mov [edi], eax
+
+   
 
     ret

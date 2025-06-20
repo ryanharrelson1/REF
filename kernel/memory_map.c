@@ -41,6 +41,6 @@ void parse_memory_map(uintptr_t mb_info_addr){
         }
         tag = (struct multiboot_tag *)((uintptr_t)tag + ((tag->size + 7) & ~7));
     }
-   pmm_init(mem_regions, region_count);
+ pmm_init(mem_regions, region_count);
     
 }

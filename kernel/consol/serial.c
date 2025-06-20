@@ -1,8 +1,7 @@
 #include "serial.h"
 #include "../io/io.h"
 
-#define KERNEL_BASE 0xC0000000UL
-#define PHYS_TO_VIRT(addr) ((void*)((uintptr_t)(addr) + KERNEL_BASE))
+
 
 
 #define SERIAL_PORT 0x3F8
@@ -39,7 +38,6 @@ void write_serial_string(const char* str){
 
      if (!str) return; 
 
-        str = PHYS_TO_VIRT(str);
 
     while (*str){
         write_serial(*str++);

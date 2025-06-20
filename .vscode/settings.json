@@ -3,6 +3,7 @@
         "*.ejs": "html",
         "paging.h": "c",
         "stdint.h": "c",
-        "memset.h": "c"
+        "memset.h": "c",
+        "stddef.h": "c"
     }
 }

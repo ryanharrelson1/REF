@@ -44,7 +44,7 @@ iso: kernel.elf
 	grub-mkrescue -o newos.iso isodir
 
 run: iso
-	qemu-system-i386 -cdrom newos.iso -m 4G -serial stdio 
+	qemu-system-i386 -cdrom newos.iso -m 4G -serial stdio -d int -no-reboot 
 
 clean: 
 	rm -f *.o kernel.elf newos.iso

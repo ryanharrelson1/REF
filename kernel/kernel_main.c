@@ -4,42 +4,34 @@
 #include "io/io.h"
 #include "memory_map.h"
 #include "multiboot.h"
+#include "pmm/pmm.h"
 
 #define KERNEL_BASE 0xC0000000UL
 #define PHYS_TO_VIRT(addr) ((void*)((uintptr_t)(addr) + KERNEL_BASE))
 
+
+extern uint32_t page_table[];
 
 
     
 
 
 void kernel_main() {
-        uint32_t mb_info_phys;
-   __asm__ volatile ("movl %%ebx, %0" : "=r"(mb_info_phys));
 
     init_serial();
-    parse_memory_map(mb_info_phys);
-  page_high_init();
 
-  //void* page =  pmm_alloc_page();
+    volatile char* vga = (volatile char*)0xC03B8000 ;
+  vga[0] = 'X';
+  vga[1] = 0x0F; // White on black
+   
 
- 
-
-
-
+   
 
     
 
- 
-
-
-
 
 
  
-
-
-
 
 
 
