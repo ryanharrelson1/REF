@@ -21,10 +21,18 @@ multiboot_header_start:
     dd 8
 multiboot_header_end:
 
+global multiboot_info_ptr
+global multiboot_magic 
+section .boot
+align 4
+multiboot_magic: resd 1
+multiboot_info_ptr: resd 1
+
 section .bss
 align 16
 stack_bottom:
     resb 16384
+ global stack_top
 stack_top:
 
 section .boot
@@ -47,6 +55,9 @@ section .boot
 _start:
     cli
 
+    mov [multiboot_magic], eax   ; save multiboot magic
+    mov [multiboot_info_ptr], ebx ; save pointer
+
     call setup_paging
 
     mov eax, page_dir
@@ -59,7 +70,8 @@ _start:
 
     mov esp, stack_top
 
-    jmp 0xC0000000
+   jmp 0xC0000000
+ 
 
 
 
@@ -90,6 +102,7 @@ setup_paging:
 
     mov edi, page_table_high
     mov ecx, 1024
+    ; Start mapping high memory from physical address 0x00110000 (commonly used for higher-half kernel mapping)
     mov esi, 0x00110000
 
 .fill_table_high:

@@ -3,7 +3,6 @@ ENTRY(_start)
 SECTIONS {
     . = 0x00100000;
 
-    /* ✅ Multiboot2 header MUST come first */
     .multiboot2 ALIGN(8) : AT(ADDR(.multiboot2)) {
         KEEP(*(.multiboot2))
     }
@@ -12,25 +11,50 @@ SECTIONS {
         KEEP(*(.boot))
     }
 
-    /* Now jump to high virtual addresses */
+    /* LMA for .text */
+    __text_lma_start = 0x00110000;
+
     . = 0xC0000000;
 
-    .text ALIGN(4K) : AT(0x00110000) {
+    .text ALIGN(4K) : AT(__text_lma_start) {
+        __text_vma_start = .;
         *(.text*)
+        __text_vma_end = .;
+        __text_lma_end = LOADADDR(.text) + SIZEOF(.text);
     }
 
-    .rodata ALIGN(4K) : AT(0x00111000) {
+    /* LMA for .rodata aligned after .text */
+    __rodata_lma_start = (__text_lma_end + 0xFFF) & ~0xFFF;
+
+    .rodata ALIGN(4K) : AT(__rodata_lma_start) {
+        __rodata_vma_start = .;
         *(.rodata*)
+        *(.eh_frame)
+        __rodata_vma_end = .;
+        __rodata_lma_end = LOADADDR(.rodata) + SIZEOF(.rodata);
     }
 
-    .data ALIGN(4K) : AT(0x00112000) {
+    /* LMA for .data aligned after .rodata */
+    __data_lma_start = (__rodata_lma_end + 0xFFF) & ~0xFFF;
+
+    .data ALIGN(4K) : AT(__data_lma_start) {
+        __data_vma_start = .;
         *(.data*)
+        *(.got*)
+        *(.got.plt*)
+        __data_vma_end = .;
+        __data_lma_end = LOADADDR(.data) + SIZEOF(.data);
     }
 
-    .bss ALIGN(4K) : AT(0x00113000) {
+    /* LMA for .bss aligned after .data */
+    __bss_lma_start = (__data_lma_end + 0xFFF) & ~0xFFF;
+
+    .bss ALIGN(4K) : AT(__bss_lma_start) {
         *(.bss*)
         *(COMMON)
     }
 
-    _kernel_end = .;
+
+     _kernel_end_phys = (__bss_lma_start + SIZEOF(.bss));
+
 }

@@ -4,6 +4,8 @@
         "paging.h": "c",
         "stdint.h": "c",
         "memset.h": "c",
-        "stddef.h": "c"
+        "stddef.h": "c",
+        "gdt.h": "c",
+        "serial.h": "c"
     }
 }

@@ -5,40 +5,61 @@
 #include "memory_map.h"
 #include "multiboot.h"
 #include "pmm/pmm.h"
+#include "gdt/gdt.h"
+#include "gdt/tss.h"
+#include "idt/idt.h"
+#include "pic/pic.h"
+#include "handlers/handler_init.h"
 
-#define KERNEL_BASE 0xC0000000UL
-#define PHYS_TO_VIRT(addr) ((void*)((uintptr_t)(addr) + KERNEL_BASE))
 
 
-extern uint32_t page_table[];
 
 
-    
+extern uint32_t  multiboot_info_ptr;
+extern uint32_t multiboot_magic;
+extern char stack_top[];
+
+
+
+
+
+
+
 
 
 void kernel_main() {
+ init_serial();
+gdt_install();
+tss_install(5, 0x10, stack_top);// Install TSS at GDT index 5 with kernel stack
+idt_install();
+pic_remap();
+handlers_install();
 
-    init_serial();
+parse_memory_map(multiboot_info_ptr);
 
-    volatile char* vga = (volatile char*)0xC03B8000 ;
-  vga[0] = 'X';
-  vga[1] = 0x0F; // White on black
-   
+ paging_init();
 
-   
 
-    
+
+
+
+
+  
+  
 
 
 
  
 
 
+  
 
 
 
+    asm volatile ("sti"); // Enable interrupts
 
-   
+
+
     
     while (1) {
         asm volatile ("hlt");

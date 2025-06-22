@@ -2,6 +2,7 @@
 #include "multiboot.h"
 #include <stddef.h> // for size_t
 #include "pmm/pmm.h"
+#include "consol/serial.h"
 
 
 
@@ -12,12 +13,16 @@ size_t region_count = 0;
 
 void parse_memory_map(uintptr_t mb_info_addr){
 
-    struct multiboot_tag *tag = (struct multiboot_tag *)(mb_info_addr + 8);
 
+
+    struct multiboot_tag *tag = (struct multiboot_tag *)(mb_info_addr + 8);
+   
 
     while (tag->type != MULTIBOOT_TAG_TYPE_END)
     {
+      
         if(tag->type == MULTIBOOT_TAG_TYPE_MMAP){
+  
             struct multiboot_tag_mmap *mmap_tag = (struct multiboot_tag_mmap *)tag;
 
              uintptr_t entry_addr = (uintptr_t)mmap_tag + sizeof(struct multiboot_tag_mmap);
@@ -32,7 +37,13 @@ void parse_memory_map(uintptr_t mb_info_addr){
                     mem_regions[region_count].base_addr = entry->addr;
                     mem_regions[region_count].length = entry->len;
                     mem_regions[region_count].type = entry->type;
+
+
+           
                     region_count++;
+
+
+                  
 
                 }
 
