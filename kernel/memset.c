@@ -1,6 +1,14 @@
 #include "memset.h"
+#include "consol/serial.h"
 
 void* memsets(void* ptr, int value, size_t num) {
+ write_serial_string("[memsets] Called with ptr=0x");
+    serial_write_hex32((uint32_t)ptr); 
+    write_serial_string(", value=0x");
+    serial_write_hex32((uint32_t)value);
+    write_serial_string(", num=");
+    serial_write_hex32((uint32_t)num);
+    write_serial_string("\n");
     unsigned char* p = (unsigned char*)ptr;
     for (size_t i = 0; i < num; i++) {
         p[i] = (unsigned char)value;

@@ -128,6 +128,12 @@ setup_paging:
     add edi, 952 * 4                 ; 952th entry in kernel's page table
     mov [edi], eax
 
+    mov eax, page_dir
+    or eax, 0x3
+    mov edi, page_dir
+    add edi, 1023 * 4
+    mov [edi], eax
+
    
 
     ret
