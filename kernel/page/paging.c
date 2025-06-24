@@ -23,7 +23,7 @@
 
 
 
-
+ extern uint32_t page_dir[]; 
 static uint32_t* page_directory;
 
 
@@ -37,11 +37,41 @@ static inline void flush_tlb_single(uintptr_t addr) {
 
 
 
-static inline void flush_tlb(void) {
-    uintptr_t cr3;
-    __asm__ volatile("mov %%cr3, %0" : "=r"(cr3));
-    __asm__ volatile("mov %0, %%cr3" :: "r"(cr3));
+
+
+static inline void flush_tlb() {
+    asm volatile (
+        "mov %%cr3, %%eax\n"
+        "mov %%eax, %%cr3\n"
+        :
+        :
+        : "eax"
+    );
 }
+
+
+uintptr_t virt_to_phys_func(void* virtual_addr) {
+    uint32_t addr = (uint32_t)virtual_addr;
+
+    uint32_t pde_index = addr >> 22;              // Top 10 bits
+    uint32_t pte_index = (addr >> 12) & 0x3FF;     // Next 10 bits
+    uint32_t offset    = addr & 0xFFF;             // Bottom 12 bits
+
+    // Recursive access
+    uint32_t* page_directory = (uint32_t*)0xFFFFF000;
+    uint32_t* page_table     = (uint32_t*)(0xFFC00000 + (pde_index * 0x1000));
+
+    uint32_t pde = page_directory[pde_index];
+    if (!(pde & PDE_PRESENT)) return 0;
+
+    uint32_t pte = page_table[pte_index];
+    if (!(pte & PTE_PRESENT)) return 0;
+
+    uintptr_t phys_base = pte & 0xFFFFF000;
+    return phys_base + offset;
+}
+
+
 
 
 
@@ -181,47 +211,73 @@ void paging_unmap_page(uintptr_t virtual_addr) {
 
 
 void paging_init() {
-   extern uint32_t page_dir[]; // From boot.s
-    page_directory = (uint32_t*)(KERNEL_VIRTUAL_BASE + (uintptr_t)&page_dir);
 
- write_serial_string("[paging_init] Virtual address of page_directory: 0x");
-    serial_write_hex32((uint32_t)page_directory);
-    write_serial_string("\n");
 
-    page_directory[0] = 0;
+
+
+
+    page_dir[0] = 0;
 
 
     flush_tlb();
 
- test_manual_map();
-  
+   test_access();
 }
 
-void test_recursive_mapping() {
-     write_serial_string("[recursive_test] Begin recursive mapping test\n");
 
-    // Step 1: Access the page directory via recursive mapping
-    uint32_t* pd_virtual = (uint32_t*)0xFFFFF000;
-    write_serial_string("[recursive_test] PDE[0] = ");
-    serial_write_hex32(pd_virtual[0]);
-    write_serial_string("\n");
 
-      uint32_t pd_index = 768; // or 768 if you're using higher half
-    uint32_t* pt_virtual = (uint32_t*)(0xFFC00000 + (pd_index * 0x1000));
+void test_access(){
 
-    
-    // Step 3: Print first few entries in the page table
-    write_serial_string("[recursive_test] First few PTEs for pd_index ");
-    serial_write_hex32(pd_index);
-    write_serial_string(":\n");
 
-    for (int i = 0; i < 4; ++i) {
-        write_serial_string("  PTE[");
-        serial_write_hex32(i);
-        write_serial_string("] = ");
-        serial_write_hex32(pt_virtual[i]);
-        write_serial_string("\n");
+
+
+  uint32_t virt = 0xC0400000;      // Virtual address to map
+ 
+
+    uint32_t pde_index = virt >> 22;               // = 769
+      uint32_t pte_index = (virt >> 12) & 0x3FF;      // = 0
+
+         uint32_t* page_directory = (uint32_t*)0xFFFFF000;
+
+
+           uintptr_t phys = pmm_alloc_page();
+    if (phys == 0) {
+        write_serial_string("[test_access] PMM physical page allocation failed!\n");
+        return;
     }
+
+
+
+          
+    write_serial_string("[test_access] Page directory address:");
+    serial_write_hex32((uint32_t)page_directory);
+         uint32_t* page_table = (uint32_t*)(0xFFC00000 + (pde_index * 0x1000));
+
+          if ((page_directory[pde_index] & PDE_PRESENT) == 0) {
+          uintptr_t new_pt_phys = pmm_alloc_page();
+        if (new_pt_phys == 0) {
+            write_serial_string("[test_access] PMM allocation failed!\n");
+            return;
+        }
+
+          page_directory[pde_index] = new_pt_phys | PDE_PRESENT | PDE_RW;
+
+          uint32_t* new_pt_virt = (uint32_t*)(0xFFC00000 + (pde_index * 0x1000));
+        for (int i = 0; i < 1024; i++) {
+            new_pt_virt[i] = 0;
+        }
+    }
+
+     page_table[pte_index] = phys | PTE_PRESENT | PTE_RW;
+
+    // Flush TLB for that address
+    asm volatile("invlpg (%0)" :: "r" (virt) : "memory");
+
+     write_serial_string("[test_access] Mapped virtual ");
+    serial_write_hex32(virt);
+    write_serial_string(" to physical ");
+    serial_write_hex32(phys);
+    write_serial_string("\n");
 
 }
 
@@ -271,71 +327,6 @@ void paging_run_tests() {
 }
 
 
-void test_manual_map() {
-    write_serial_string("Manual paging test start\n");
-
-    uint32_t pd_index = (0xCAFEBABE >> 22) & 0x3FF; // 0x100
-    uint32_t pt_index = (0xCAFEBABE >> 12) & 0x3FF; // 0x0
-
-    // Step 1: Check if page directory entry is present
-    if (!(page_directory[pd_index] & PDE_PRESENT)) {
-        // Allocate physical page for page table
-        uintptr_t pt_phys = pmm_alloc_page();
-        if (!pt_phys) panic("Failed to allocate page table page");
-
-        // Set PDE to new page table with flags
-        page_directory[pd_index] = pt_phys | PDE_PRESENT | PDE_RW | PDE_USER;
-        flush_tlb(); // Flush TLB after modifying page directory
-
-           write_serial_string("PDE set to: 0x");
-            serial_write_hex32(page_directory[pd_index]);
-             write_serial_string("\n");
-
-        
-    }
-
-    volatile uint32_t* sanity = (uint32_t*)(0xFFC00000 + pd_index * 0x1000);
-write_serial_string("Trying to write to page table entry\n");
-sanity[0] = 0;  // just to ensure it doesn’t fault
-
-    // Step 2: Access page table via recursive mapping
-    uint32_t* pt_virt = (uint32_t*)(0xFFC00000 + pd_index * 0x1000);
-    if (!pt_virt) panic("Failed to get page table virtual address");
-
-    write_serial_string("Recursive PT virtual address: 0x");
-    serial_write_hex32((uint32_t)pt_virt);
-    write_serial_string("\n");
-
-    write_serial_string("PT first entry before memset: 0x");
-    serial_write_hex32(pt_virt[0]);
-    write_serial_string("\n");
-
-    // Clear page table (optional if newly allocated)
-    memsets(pt_virt, 0, 0x1000);
-     serial_write_hex32((uint32_t)pt_virt);
-
-    // Step 3: Allocate physical page for the actual mapped page
-    uintptr_t page_phys = pmm_alloc_page();
-    if (!page_phys) panic("Failed to allocate physical page");
-    write_serial_string("Allocated page phys addr: 0x");
-    serial_write_hex32((uint32_t)page_phys);
-    write_serial_string("\n");
-
-    // Step 4: Set page table entry
-    pt_virt[pt_index] = page_phys | PTE_PRESENT | PTE_RW | PTE_USER;
-
-    flush_tlb_single(0x40000000);
-
-    // Step 5: Test access
-    volatile uint32_t* test_ptr = (uint32_t*)0x40000000;
-    *test_ptr = 0x12345678;
-
-    if (*test_ptr != 0x12345678) {
-        panic("Manual test failed: memory read/write mismatch");
-    }
-
-    write_serial_string("Manual paging test succeeded!\n");
-}
 
 
 
