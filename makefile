@@ -59,10 +59,20 @@ handlers.o: kernel/handlers/handler_init.c kernel/handlers/handler_init.h
 isr_stub.o: kernel/handlers/isr_stub.s
 	nasm -f elf32 kernel/handlers/isr_stub.s -o isr_stub.o
 
+vmm.o: kernel/vmm/vmm.c kernel/vmm/vmm.h
+	i686-elf-gcc -m32 -ffreestanding -c kernel/vmm/vmm.c -o vmm.o
 
+user.o: kernel/user/user_mode.c kernel/user/user_mode.h
+	i686-elf-gcc -m32 -ffreestanding -c kernel/user/user_mode.c -o user.o
 
-kernel.elf: kernel_main.o boot.o paging.o io.o serial.o memory_map.o memset.o panic.o pmm.o gdt.o gdt_flush.o tss.o idt.o idt_flush.o pic.o exception.o handlers.o isr_stub.o
-	i686-elf-ld -T linker.ld -o kernel.elf boot.o kernel_main.o paging.o io.o serial.o memory_map.o memset.o panic.o pmm.o gdt.o gdt_flush.o tss.o idt.o idt_flush.o pic.o exception.o handlers.o isr_stub.o
+user_mode.bin: kernel/user/user.asm
+	nasm -f bin -o user_mode.bin kernel/user/user.asm
+
+user_mode.o: user_mode.bin
+	i686-elf-objcopy -I binary -O elf32-i386 -B i386 user_mode.bin user_mode.o
+
+kernel.elf: kernel_main.o boot.o paging.o io.o serial.o memory_map.o memset.o panic.o pmm.o gdt.o gdt_flush.o tss.o idt.o idt_flush.o pic.o exception.o handlers.o isr_stub.o vmm.o user.o user_mode.o
+	i686-elf-ld -T linker.ld -o kernel.elf boot.o kernel_main.o paging.o io.o serial.o memory_map.o memset.o panic.o pmm.o gdt.o gdt_flush.o tss.o idt.o idt_flush.o pic.o exception.o handlers.o isr_stub.o vmm.o user.o user_mode.o
 
 iso: kernel.elf	
 	mkdir -p isodir/boot/grub

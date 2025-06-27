@@ -6,6 +6,9 @@
         "memset.h": "c",
         "stddef.h": "c",
         "gdt.h": "c",
-        "serial.h": "c"
+        "serial.h": "c",
+        "handler_init.h": "c",
+        "stdbool.h": "c",
+        "pmm.h": "c"
     }
 }

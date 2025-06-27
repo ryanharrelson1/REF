@@ -24,7 +24,7 @@
 
 
  extern uint32_t page_dir[]; 
-static uint32_t* page_directory;
+#define RECURSIVE_PAGE_DIR ((uint32_t*)0xFFFFF000)
 
 
 // Helper: flush TLB for a single page
@@ -83,13 +83,15 @@ uint32_t* get_page_table_virt(uint32_t pd_index) {
 
 
 void paging_map_page(uintptr_t virt, uintptr_t phys, uint32_t flags){
-     write_serial_string("[paging_map_page] Called with virt=0x");
+     write_serial_string("[paging_map_page] Called with virt=");
     serial_write_hex32((uint32_t)virt);
-    write_serial_string(", phys=0x");
+    write_serial_string(", phys=");
     serial_write_hex32((uint32_t)phys);
-    write_serial_string(", flags=0x");
+    write_serial_string(", flags=");
     serial_write_hex32(flags);
     write_serial_string("\n");
+
+
 
 
     uint32_t pd_index = (virt >> 22) & 0x3FF;
@@ -102,10 +104,12 @@ void paging_map_page(uintptr_t virt, uintptr_t phys, uint32_t flags){
     write_serial_string("\n");
 
 
-    uint32_t pd_entry = page_directory[pd_index];
+    uint32_t pd_entry = RECURSIVE_PAGE_DIR[pd_index];
     write_serial_string("[paging_map_page] PDE value: 0x");
     serial_write_hex32(pd_entry);
     write_serial_string("\n");
+
+      
 
 
 
@@ -116,14 +120,19 @@ void paging_map_page(uintptr_t virt, uintptr_t phys, uint32_t flags){
       panic("Out of memory: failed to allocate page table");
      }
 
-   
-    
+
+       uint32_t pde_flags = PDE_PRESENT | PDE_RW;
+        if (flags & PTE_USER) {
+            pde_flags |= PDE_USER;
+        }
+
+              
 
         
          write_serial_string("[paging_map_page] New PT phys addr: 0x");
         serial_write_hex32((uint32_t)pt_phys);
         write_serial_string("\n");
-        page_directory[pd_index] = pt_phys | PDE_PRESENT | PDE_RW | PDE_USER;
+       RECURSIVE_PAGE_DIR[pd_index] = pt_phys | pde_flags;
         flush_tlb();
 
        
@@ -137,8 +146,10 @@ void paging_map_page(uintptr_t virt, uintptr_t phys, uint32_t flags){
          write_serial_string("[paging_map_page] Updated PDE at index ");
         serial_write_hex32(pd_index);
         write_serial_string(" to 0x");
-        serial_write_hex32(page_directory[pd_index]);
+        serial_write_hex32(RECURSIVE_PAGE_DIR[pd_index]);
         write_serial_string("\n");
+        
+      
     
     }
 
@@ -146,6 +157,7 @@ void paging_map_page(uintptr_t virt, uintptr_t phys, uint32_t flags){
      write_serial_string("[paging_map_page] Page table address: 0x");
     serial_write_hex32((uint32_t)page_table);
     write_serial_string("\n");
+    
 
      write_serial_string("[paging_map_page] Setting PTE at index ");
     serial_write_hex32(pt_index);
@@ -156,8 +168,10 @@ void paging_map_page(uintptr_t virt, uintptr_t phys, uint32_t flags){
     write_serial_string("\n");
 
     page_table[pt_index] = (phys & ~0xFFF) | (flags & 0xFFF) | PTE_PRESENT;
+    
 
     flush_tlb_single(virt);
+   
 }
 
 void paging_unmap_page(uintptr_t virtual_addr) {
@@ -175,7 +189,7 @@ void paging_unmap_page(uintptr_t virtual_addr) {
     serial_write_hex32(pt_index);
     write_serial_string("\n");
 
-    if (!(page_directory[pd_index] & PDE_PRESENT)) {
+    if (!(RECURSIVE_PAGE_DIR[pd_index] & PDE_PRESENT)) {
         write_serial_string("[paging_unmap_page] PDE not present, nothing to unmap\n");
         return; // Page table not present
     }
@@ -202,7 +216,7 @@ void paging_unmap_page(uintptr_t virtual_addr) {
     serial_write_hex32((uint32_t)phys_addr);
     write_serial_string("\n");
 
-    pmm_free_page((void*)phys_addr);  // Free the physical frame
+   // pmm_free_page((void*)phys_addr);  // Free the physical frame
 
     pt[pt_index] = 0; // Clear the entry
 
@@ -221,65 +235,11 @@ void paging_init() {
 
     flush_tlb();
 
-   test_access();
-}
-
-
-
-void test_access(){
-
-
-
-
-  uint32_t virt = 0xC0400000;      // Virtual address to map
  
 
-    uint32_t pde_index = virt >> 22;               // = 769
-      uint32_t pte_index = (virt >> 12) & 0x3FF;      // = 0
-
-         uint32_t* page_directory = (uint32_t*)0xFFFFF000;
-
-
-           uintptr_t phys = pmm_alloc_page();
-    if (phys == 0) {
-        write_serial_string("[test_access] PMM physical page allocation failed!\n");
-        return;
-    }
-
-
-
-          
-    write_serial_string("[test_access] Page directory address:");
-    serial_write_hex32((uint32_t)page_directory);
-         uint32_t* page_table = (uint32_t*)(0xFFC00000 + (pde_index * 0x1000));
-
-          if ((page_directory[pde_index] & PDE_PRESENT) == 0) {
-          uintptr_t new_pt_phys = pmm_alloc_page();
-        if (new_pt_phys == 0) {
-            write_serial_string("[test_access] PMM allocation failed!\n");
-            return;
-        }
-
-          page_directory[pde_index] = new_pt_phys | PDE_PRESENT | PDE_RW;
-
-          uint32_t* new_pt_virt = (uint32_t*)(0xFFC00000 + (pde_index * 0x1000));
-        for (int i = 0; i < 1024; i++) {
-            new_pt_virt[i] = 0;
-        }
-    }
-
-     page_table[pte_index] = phys | PTE_PRESENT | PTE_RW;
-
-    // Flush TLB for that address
-    asm volatile("invlpg (%0)" :: "r" (virt) : "memory");
-
-     write_serial_string("[test_access] Mapped virtual ");
-    serial_write_hex32(virt);
-    write_serial_string(" to physical ");
-    serial_write_hex32(phys);
-    write_serial_string("\n");
 
 }
+
 
 
 

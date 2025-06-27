@@ -95,7 +95,7 @@ uintptr_t pmm_alloc_page(void) {
             bitmap_set(i);
 
             uintptr_t addr = page_to_addr(i);
-            write_serial_string("pmm_alloc_page: allocated page phys addr: 0x");
+            write_serial_string("pmm_alloc_page: allocated page phys addr: ");
             serial_write_hex32((uint32_t)addr);
             write_serial_string("\n");
 
@@ -177,7 +177,17 @@ void pmm_print_total_memory(void) {
 void pmm_print_free_memory(void) {
     size_t free_pages = pmm_get_free_page_count();
     uint64_t free_bytes = free_pages * PAGE_SIZE;
+    size_t used_pages = pmm_get_free_page_count();
 
+
+        write_serial_string("free memory: ");
+
+    serial_write_hex32((uint32_t)free_bytes);
+
+    write_serial_string(" \n");
+    write_serial_string("used memory: ");
+    serial_write_hex32((uint32_t)(used_pages * PAGE_SIZE));
+    write_serial_string(" \n");
   
     
     // If you have a helper to print numbers in decimal or hex, use it here.

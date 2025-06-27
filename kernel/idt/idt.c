@@ -12,6 +12,9 @@ struct idt_ptr_t idt_ptr;
 struct idtr_t idtr_actual;
 
 
+uint32_t idt_addr;  
+
+
 extern void idt_flush(uint32_t);
 
 
@@ -49,4 +52,9 @@ void idt_install(void){
     if(idtr_actual.base != idt_ptr.base || idtr_actual.limit != idt_ptr.limit ) {
         panic(" IDT: IDTR mismatch after flush");
     }
+    init_idt_addr();
+}
+
+void init_idt_addr(void) {
+    idt_addr = (uint32_t)&idt_entries;
 }

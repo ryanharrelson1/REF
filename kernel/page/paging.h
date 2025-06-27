@@ -15,6 +15,7 @@
 #define KERNEL_PHYS_WINDOW 0xC0000000
 #define phys_to_virt(p) ((void*)((uintptr_t)(p) + KERNEL_PHYS_WINDOW))
 #define virt_to_phys(v) ((uintptr_t)(v) - KERNEL_PHYS_WINDOW)
+#define RECURSIVE_PAGE_DIR ((uint32_t*)0xFFFFF000)
 
 
 void paging_init();
