@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include "../vmm/vmm.h"
 #include "../memset.h"
+#include "../consol/serial.h"
 
 
 extern uint8_t _binary_user_mode_bin_start[];
@@ -17,6 +18,10 @@ static inline uint32_t align_up(uint32_t val) {
 
 
 void vmm_load_usermode(process_t* proc) {
+
+    write_serial_string("proccess pointer:");
+    serial_write_hex32(proc);
+    write_serial_string("\n");
     uint32_t user_bin_size = (uint32_t)(_binary_user_mode_bin_end - _binary_user_mode_bin_start);
     uint32_t aligned_size = align_up(user_bin_size);
 
@@ -29,8 +34,12 @@ void vmm_load_usermode(process_t* proc) {
         panic("Failed to allocate user virtual memory");
     }
 
+    uint8_t user_code[] = {
+    0xEB, 0xFE  // JMP $
+};
+
     // Copy user binary into allocated virtual memory
-    memcpys(user_virt, _binary_user_mode_bin_start, user_bin_size);
+    memcpys(user_virt, user_code, sizeof(user_code));
 
     // Load the process's page directory (CR3)
     cpu_load_cr3((uintptr_t)proc->page_directory);
@@ -44,12 +53,15 @@ void vmm_load_usermode(process_t* proc) {
 
     // Calculate stack top address (stack grows downward)
     uintptr_t user_stack_top = (uintptr_t)user_stack + PAGE_SIZE;
-
+  
+    write_serial_string("loaded user procces ");
+    serial_write_hex32(user_virt);
+    asm volatile ("hlt");
     // Switch to user mode and jump to user program start
-    //cpu_enter_user_mode((uintptr_t)user_virt, user_stack_top);
+    cpu_enter_user_mode((uintptr_t)user_virt, user_stack_top);
 
     // Should never return here
-    //panic("Returned from user mode unexpectedly");
+    panic("Returned from user mode unexpectedly");
 }
 
 

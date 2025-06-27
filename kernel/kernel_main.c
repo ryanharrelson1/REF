@@ -58,71 +58,8 @@ parse_memory_map(multiboot_info_ptr);
  write_serial_string("[kernel_main] user test  ");
 
 
-    vmm_init_process(&test_proc);
+ vmm_load_usermode(&test_proc);
 
-    write_serial_string("[test] Process page directory: ");
-    serial_write_hex32((uint32_t)test_proc.page_directory);
-    write_serial_string("\n");
-
-    write_serial_string("[test] User space region start: ");
-   serial_write_hex32(test_proc.user_space_free_list->start);
-    write_serial_string("\n");
-
-    write_serial_string("[test] User space region size: ");
-serial_write_hex32(test_proc.user_space_free_list->size);
-write_serial_string("\n");
-
-write_serial_string(", user_space_free_list pointer: ");
-serial_write_hex32((uint32_t)test_proc.user_space_free_list);
-write_serial_string("\n");
-
- void* user_mem = vmm_alloc(16 * 1024, &test_proc, false);
-if (!user_mem) {
-    panic("Failed to allocate user memory for process");
-    
-
-}
-
-
-
-paging_map_page(TEMP_MAP, (uintptr_t)test_proc.page_directory, PAGE_PRESENT | PAGE_WRITE);
-uint32_t* pd_virt = (uint32_t*)TEMP_MAP;
-
-// Read PDE
-uint32_t pde = pd_virt[768];
-write_serial_string("[debug] PDE[768] = ");
-serial_write_hex32(pde);
-write_serial_string("\n");
-
-// Map PT
-uint32_t pt_phys = pde & 0xFFFFF000;
-paging_map_page(TEMP_MAP + PAGE_SIZE, pt_phys, PAGE_PRESENT | PAGE_WRITE);
-uint32_t* pt_virt = (uint32_t*)(TEMP_MAP + PAGE_SIZE);
-
-// Read PTE
-uint32_t pte = pt_virt[0];
-write_serial_string("[debug] PTE[0] = ");
-serial_write_hex32(pte);
-write_serial_string("\n");
-
-// Unmap TEMP_MAP pages
-paging_unmap_page(TEMP_MAP);
-paging_unmap_page(TEMP_MAP + PAGE_SIZE);
-
-
-
-
-if (test_proc.user_space_free_list->next != NULL)
-    panic("Unexpected extra region in free list!");
-
-    // Disable interrupts
-
- write_serial_string("[kernel_main] Loading new page directory into CR3\n");
- 
- cpu_load_cr3((uint32_t)test_proc.page_directory);
-
-
- 
 
 
 
