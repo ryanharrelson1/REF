@@ -53,26 +53,7 @@ static inline void flush_tlb() {
 }
 
 
-uintptr_t virt_to_phys_func(void* virtual_addr) {
-    uint32_t addr = (uint32_t)virtual_addr;
 
-    uint32_t pde_index = addr >> 22;              // Top 10 bits
-    uint32_t pte_index = (addr >> 12) & 0x3FF;     // Next 10 bits
-    uint32_t offset    = addr & 0xFFF;             // Bottom 12 bits
-
-    // Recursive access
-    uint32_t* page_directory = (uint32_t*)0xFFFFF000;
-    uint32_t* page_table     = (uint32_t*)(0xFFC00000 + (pde_index * 0x1000));
-
-    uint32_t pde = page_directory[pde_index];
-    if (!(pde & PDE_PRESENT)) return 0;
-
-    uint32_t pte = page_table[pte_index];
-    if (!(pte & PTE_PRESENT)) return 0;
-
-    uintptr_t phys_base = pte & 0xFFFFF000;
-    return phys_base + offset;
-}
 
 
 
@@ -85,7 +66,7 @@ uint32_t* get_page_table_virt(uint32_t pd_index) {
 }
 
 
-void paging_map_page(uintptr_t virt, uintptr_t phys, uint32_t flags){
+void kernel_page_map(uintptr_t virt, uintptr_t phys, uint32_t flags){
      write_serial_string("[paging_map_page] Called with virt=");
     serial_write_hex32((uint32_t)virt);
     write_serial_string(", phys=");
@@ -177,7 +158,7 @@ void paging_map_page(uintptr_t virt, uintptr_t phys, uint32_t flags){
    
 }
 
-void paging_map_page_for_pd(uint32_t* pd_phys, uintptr_t virt, uintptr_t phys, uint32_t flags) {
+void user_page_map(uint32_t* pd_phys, uintptr_t virt, uintptr_t phys, uint32_t flags) {
 
     write_serial_string("[paging_map_page_for_pd] Called with virt=");
     serial_write_hex32((uint32_t)virt);
@@ -193,7 +174,7 @@ void paging_map_page_for_pd(uint32_t* pd_phys, uintptr_t virt, uintptr_t phys, u
     uint32_t pt_index = (virt >> 12) & 0x3FF;
 
     // Map the page directory temporarily
-    paging_map_page(TEMP_PD_MAP, (uintptr_t)pd_phys, PTE_PRESENT | PTE_RW);
+    kernel_page_map(TEMP_PD_MAP, (uintptr_t)pd_phys, PTE_PRESENT | PTE_RW);
     uint32_t* pd_virt = (uint32_t*)TEMP_PD_MAP;
 
     write_serial_string("[paging_map_page_for_pd] pd_index=0x");
@@ -215,11 +196,11 @@ serial_write_hex32(pd_virt);
 
         pd_virt[pd_index] = pt_phys | PTE_PRESENT | PTE_RW;
         
-        paging_map_page(TEMP_PT_MAP + PAGE_SIZE, pt_phys, PTE_PRESENT | PTE_RW);
+        kernel_page_map(TEMP_PT_MAP + PAGE_SIZE, pt_phys, PTE_PRESENT | PTE_RW);
         memsets((void*)(TEMP_PT_MAP + PAGE_SIZE), 0, PAGE_SIZE);
     } else {
         pt_phys = pd_virt[pd_index] & ~0xFFF;
-        paging_map_page(TEMP_PT_MAP + PAGE_SIZE, pt_phys, PTE_PRESENT | PTE_RW);
+        kernel_page_map(TEMP_PT_MAP + PAGE_SIZE, pt_phys, PTE_PRESENT | PTE_RW);
     }
 
      
@@ -230,14 +211,14 @@ serial_write_hex32(pd_virt);
     
     
     // Unmap TEMP_MAPs
-    paging_unmap_page(TEMP_PT_MAP + PAGE_SIZE);
-    paging_unmap_page(TEMP_PD_MAP);
+    paging_unmap_page(TEMP_PT_MAP + PAGE_SIZE,true);
+    paging_unmap_page(TEMP_PD_MAP, true);
 
   
    
 }
 
-void paging_unmap_page(uintptr_t virtual_addr) {
+void paging_unmap_page(uintptr_t virtual_addr, bool free_phys) {
 
     write_serial_string("[paging_unmap_page] Called with virtual_addr=0x");
     serial_write_hex32((uint32_t)virtual_addr);
@@ -279,7 +260,14 @@ void paging_unmap_page(uintptr_t virtual_addr) {
     serial_write_hex32((uint32_t)phys_addr);
     write_serial_string("\n");
 
-   // pmm_free_page((void*)phys_addr);  // Free the physical frame
+     if (free_phys) {
+        uintptr_t phys_addr = entry & ~0xFFF;
+        write_serial_string("[paging_unmap_page] Freeing physical page at 0x");
+        serial_write_hex32((uint32_t)phys_addr);
+        write_serial_string("\n");
+
+        pmm_free_page((void*)phys_addr);  // Free the physical frame
+    }
 
     pt[pt_index] = 0; // Clear the entry
 
@@ -323,7 +311,7 @@ void paging_run_tests() {
     uintptr_t test_virt = 0x40000000; // Arbitrary virtual address
      write_serial_string("mapping\n");
     // Step 2: Map the page
-    paging_map_page(test_virt, (uintptr_t)phys_addr, PTE_RW | PTE_USER);
+    kernel_page_map(test_virt, (uintptr_t)phys_addr, PTE_RW | PTE_USER);
 
     write_serial_string("Mapped virtual address: 0x");
     serial_write_hex32((uint32_t)test_virt);
@@ -340,7 +328,7 @@ void paging_run_tests() {
     }
 
     // Step 4: Unmap
-    paging_unmap_page(test_virt);
+    paging_unmap_page(test_virt, true);
 
     write_serial_string("Unmapped virtual address: 0x");
     serial_write_hex32((uint32_t)test_virt);

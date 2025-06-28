@@ -5,6 +5,11 @@
 #include "../page/paging.h"
 
 
+#define TEMP_COPY_ADDR 0xBFF02000
+#define TEMP_PD_MAP  0xBFF00000
+#define TEMP_PT_MAP  0xBFF01000
+
+
 extern uint8_t _binary_user_mode_bin_start[];
 extern uint8_t _binary_user_mode_bin_end[];
 
@@ -16,6 +21,73 @@ static inline void cpu_load_cr3(uintptr_t phys_addr) {
 static inline uint32_t align_up(uint32_t val) {
     return (val + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
 }
+
+uintptr_t walk_process_page_table(uint32_t* pd_phys, uintptr_t virt_addr) {
+    uint32_t pd_index = (virt_addr >> 22) & 0x3FF;
+    uint32_t pt_index = (virt_addr >> 12) & 0x3FF;
+
+    // Temporarily map page directory
+    kernel_page_map(TEMP_PD_MAP, (uintptr_t)pd_phys, PAGE_PRESENT | PAGE_WRITE);
+    uint32_t* pd_virt = (uint32_t*)TEMP_PD_MAP;
+
+    uint32_t pt_entry_raw = pd_virt[pd_index];
+    if (!(pt_entry_raw & PAGE_PRESENT)) {
+        paging_unmap_page(TEMP_PD_MAP);
+        return 0; // Not present
+    }
+
+    uintptr_t pt_phys = pt_entry_raw & ~0xFFF;
+
+    // Temporarily map the page table
+    kernel_page_map(TEMP_PT_MAP, pt_phys, PAGE_PRESENT | PAGE_WRITE);
+    uint32_t* pt_virt = (uint32_t*)TEMP_PT_MAP;
+
+    uint32_t page_entry = pt_virt[pt_index];
+    uintptr_t phys = (page_entry & PAGE_PRESENT) ? (page_entry & ~0xFFF) : 0;
+
+    // Unmap temp mappings
+    paging_unmap_page(TEMP_PT_MAP);
+    paging_unmap_page(TEMP_PD_MAP);
+
+    return phys;
+}
+
+
+void copy_to_process(process_t* proc, void* dst_virt, const void* src, size_t size) {
+    uintptr_t dst = (uintptr_t)dst_virt;
+    uintptr_t src_offset = 0;
+
+    while (src_offset < size) {
+        // Align current destination virtual address
+        uintptr_t virt_page = (dst + src_offset) & ~0xFFF;
+        uintptr_t page_offset = (dst + src_offset) & 0xFFF;
+
+        // Determine how many bytes to copy in this page
+        size_t copy_len = PAGE_SIZE - page_offset;
+        if (copy_len > size - src_offset) {
+            copy_len = size - src_offset;
+        }
+
+        // Resolve physical address from the user process page directory
+        uintptr_t phys = walk_process_page_table(proc->page_directory, virt_page);
+        if (!phys) {
+            panic("copy_to_process: page not mapped in target process");
+        }
+
+        // Temporarily map physical page into kernel space
+        kernel_page_map(TEMP_COPY_ADDR, phys, PAGE_PRESENT | PAGE_WRITE);
+
+        // Do the copy
+        memcpys((void*)(TEMP_COPY_ADDR + page_offset), (const void*)((uintptr_t)src + src_offset), copy_len);
+
+        // Unmap temporary mapping
+        paging_unmap_page(TEMP_COPY_ADDR);
+
+        src_offset += copy_len;
+    }
+}
+
+
 
 
 void vmm_load_usermode(process_t* proc) {
@@ -38,23 +110,24 @@ void vmm_load_usermode(process_t* proc) {
 
      
 
-    uint8_t user_code[] = {
-    0xEB, 0xFE  // JMP $
-};
 
     // Copy user binary into allocated virtual memory
-   // memcpys(user_virt, user_code, sizeof(user_code));
+ 
+    copy_to_process(proc, user_virt, _binary_user_mode_bin_start, user_bin_size);
     
 
      // Disable interrupts before modifying page tables
 
 
-    paging_map_page(0xBFF00000,(uintptr_t)proc->page_directory, PAGE_PRESENT | PAGE_WRITE);
+    kernel_page_map(0xBFF00400,(uintptr_t)proc->page_directory, PAGE_PRESENT | PAGE_WRITE);
 
-    uint32_t* pd_virt = (uint32_t*)0xBFF00000;
+    uint32_t* pd_virt = (uint32_t*)0xBFF00400;
 
     uint32_t pde = pd_virt[1]; // 0x00400000 is at PDE[1]
+    write_serial_string("value phys:");
    serial_write_hex32(pde);
+
+   asm volatile("hlt");
 
 
  
