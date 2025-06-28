@@ -21,6 +21,7 @@
 void paging_init();
 void paging_map_page(uintptr_t virt, uintptr_t phys, uint32_t flags);
 void paging_unmap_page(uintptr_t virtual_addr);
+void paging_map_page_for_pd(uint32_t* pd_phys, uintptr_t virt, uintptr_t phys, uint32_t flags);
 
 
 

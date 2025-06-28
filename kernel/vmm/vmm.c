@@ -287,18 +287,25 @@ write_serial_string("\n");
                 serial_write_hex32(flags);
                 write_serial_string("\n");
               
-                     
-                paging_map_page(result + offset, phys, flags);
+                
+               if (kernel) {
+                 paging_map_page(result + offset, phys, flags);
+                } else {
+                 paging_map_page_for_pd(proc->page_directory, result + offset, phys, flags);
+                }
+                  \
 
                 
 
                 
                 write_serial_string("retuned out of pageingmap ");
-
-                
+         
+              
 
                 // Zero the newly mapped page
-                memsets((void*)(result + offset), 0, PAGE_SIZE);
+             
+                // Ensure memory operations complete
+                 
             }
 
             // Adjust free list region

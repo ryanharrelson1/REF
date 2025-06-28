@@ -2,6 +2,7 @@
 #include "../vmm/vmm.h"
 #include "../memset.h"
 #include "../consol/serial.h"
+#include "../page/paging.h"
 
 
 extern uint8_t _binary_user_mode_bin_start[];
@@ -28,18 +29,35 @@ void vmm_load_usermode(process_t* proc) {
     // Initialize the process VMM structures and page directory
     vmm_init_process(proc);
 
+
     // Allocate virtual memory in the user space for the binary
     void* user_virt = vmm_alloc(aligned_size, proc, false);
     if (!user_virt) {
         panic("Failed to allocate user virtual memory");
     }
 
+     
+
     uint8_t user_code[] = {
     0xEB, 0xFE  // JMP $
 };
 
     // Copy user binary into allocated virtual memory
-    memcpys(user_virt, user_code, sizeof(user_code));
+   // memcpys(user_virt, user_code, sizeof(user_code));
+    
+
+     // Disable interrupts before modifying page tables
+
+
+    paging_map_page(0xBFF00000,(uintptr_t)proc->page_directory, PAGE_PRESENT | PAGE_WRITE);
+
+    uint32_t* pd_virt = (uint32_t*)0xBFF00000;
+
+    uint32_t pde = pd_virt[1]; // 0x00400000 is at PDE[1]
+   serial_write_hex32(pde);
+
+
+ 
 
     // Load the process's page directory (CR3)
     cpu_load_cr3((uintptr_t)proc->page_directory);
@@ -56,12 +74,12 @@ void vmm_load_usermode(process_t* proc) {
   
     write_serial_string("loaded user procces ");
     serial_write_hex32(user_virt);
-    asm volatile ("hlt");
+  
     // Switch to user mode and jump to user program start
-    cpu_enter_user_mode((uintptr_t)user_virt, user_stack_top);
+    //cpu_enter_user_mode((uintptr_t)user_virt, user_stack_top);
 
     // Should never return here
-    panic("Returned from user mode unexpectedly");
+    //panic("Returned from user mode unexpectedly");
 }
 
 
