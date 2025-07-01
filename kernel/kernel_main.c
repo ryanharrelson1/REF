@@ -24,7 +24,7 @@
 
 extern uint32_t  multiboot_info_ptr;
 extern uint32_t multiboot_magic;
-extern char stack_top[];
+
 
 
 extern struct idt_entry_t idt_entries[];
@@ -42,8 +42,13 @@ static process_t test_proc;
 
 void kernel_main() {
  init_serial();
+// Disable interrupts
 gdt_install();
-tss_install(5, 0x10, stack_top);// Install TSS at GDT index 5 with kernel stack
+uint32_t test_stack = *(volatile uint32_t*)tss_entry.esp0;// Read the kernel stack pointer from TSS
+    write_serial_string("[DEBUG] Kernel stack pointer (ESP0) = ");
+    serial_write_hex32(test_stack);
+    write_serial_string("\n");
+    asm volatile ("hlt"); // Disable interrupts
 idt_install();
 pic_remap();
 handlers_install();

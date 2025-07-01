@@ -8,7 +8,7 @@ void isr_double_fault_stub_handler(int int_no, uint32_t error_code);
 void isr_gpf_stub_handler(int int_no, uint32_t error_code);
 void isr_page_fault_stub_handler(int int_no, uint32_t error_code);
 void isr_generic_exception_stub_handler(int int_no, uint32_t error_code);
-void syscall();
+
 
 
 // Then rename your previous C handlers like this, or make wrapper functions
@@ -24,7 +24,9 @@ void isr_double_fault_stub_handler(int int_no, uint32_t error_code) {
     panic("Exception: Double Fault");
 }
 void isr_gpf_stub_handler(int int_no, uint32_t error_code) {
+    write_serial_string("[DEBUG] GPF Handler called\n");
   serial_write_dec(int_no);
+    write_serial_string("[DEBUG] Error code: ");
   serial_write_hex32(error_code);
 
     panic("Exception: General Protection Fault");
@@ -48,7 +50,3 @@ void isr_generic_exception_stub_handler(int int_no, uint32_t error_code) {
     panic("Exception: Unknown Interrupt %d, error code %d");
 }
 
-void syscall(){
-
-    write_serial_string("syscall");
-}

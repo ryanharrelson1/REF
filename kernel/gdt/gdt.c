@@ -1,9 +1,12 @@
 #include "gdt.h"
 #include "../alarm/panic.h"
+#include "tss.h"
+#include "../consol/serial.h"
 
 
 struct gdt_entry_t gdt_entries[6];
 struct gdt_ptr_t gdt_ptr;
+extern char stack_top[];
 
 void gdt_set_gate(int num, uint32_t base, uint32_t limit, uint8_t access, uint8_t gran) 
 {
@@ -20,6 +23,7 @@ void gdt_set_gate(int num, uint32_t base, uint32_t limit, uint8_t access, uint8_
 }
 
 extern void gdt_flush(uint32_t);
+extern void tss_flush(void);
 
 void gdt_install(void)
 {
@@ -36,9 +40,16 @@ void gdt_install(void)
 
  gdt_set_gate(4, 0, 0xFFFFFFFF, 0xF2, 0xCF);
 
+ 
+ 
+  tss_install(5, 0x10,(uint32_t)stack_top); // Install TSS at GDT index 5 with kernel stack  
+
  gdt_flush((uint32_t)&gdt_ptr);
 
+ tss_flush(); // Flush TSS to load it
+
  gdt_self_test();
+  tss_self_test(); // Run TSS self-test
 
 }
 

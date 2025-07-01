@@ -1,9 +1,11 @@
-[bits 32]
-global _start
+; user_mode.asm
+[BITS 32]
+[ORG 0x0]
 
-section .text
-_starts:
-    mov eax, 42          ; just some instruction
-.loop:
-    hlt
-    jmp .loop
+_start:
+    mov eax, 1        ; syscall number
+    int 0x80          ; trigger syscall
+    jmp $             ; hang
+
+loop:
+    jmp loop                ; Hang forever

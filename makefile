@@ -69,10 +69,14 @@ user_mode.bin: kernel/user/user.asm
 	nasm -f bin -o user_mode.bin kernel/user/user.asm
 
 user_mode.o: user_mode.bin
-	i686-elf-objcopy -I binary -O elf32-i386 -B i386 user_mode.bin user_mode.o
+	i686-elf-objcopy -I binary -O elf32-i386 -B i386 \
+	--rename-section .rodata=.userbin user_mode.bin user_mode.o
 
-kernel.elf: kernel_main.o boot.o paging.o io.o serial.o memory_map.o memset.o panic.o pmm.o gdt.o gdt_flush.o tss.o idt.o idt_flush.o pic.o exception.o handlers.o isr_stub.o vmm.o user.o user_mode.o
-	i686-elf-ld -T linker.ld -o kernel.elf boot.o kernel_main.o paging.o io.o serial.o memory_map.o memset.o panic.o pmm.o gdt.o gdt_flush.o tss.o idt.o idt_flush.o pic.o exception.o handlers.o isr_stub.o vmm.o user.o user_mode.o
+syscall.o : kernel/handlers/syscall.c
+	i686-elf-gcc -m32 -ffreestanding -c kernel/handlers/syscall.c -o syscall.o
+
+kernel.elf: kernel_main.o boot.o paging.o io.o serial.o memory_map.o memset.o panic.o pmm.o gdt.o gdt_flush.o tss.o idt.o idt_flush.o pic.o exception.o handlers.o isr_stub.o vmm.o user.o user_mode.o syscall.o
+	i686-elf-ld -T linker.ld -o kernel.elf boot.o kernel_main.o paging.o io.o serial.o memory_map.o memset.o panic.o pmm.o gdt.o gdt_flush.o tss.o idt.o idt_flush.o pic.o exception.o handlers.o isr_stub.o vmm.o user.o user_mode.o syscall.o
 
 iso: kernel.elf	
 	mkdir -p isodir/boot/grub

@@ -26,7 +26,14 @@ static vmm_region_slab_t region_slab = {0};
 static inline uint32_t align_up(uint32_t val) {
     return (val + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
 }
+
+static void vmm_free_internal(void* addr, uint32_t size, vmm_region_t** list);
+void* vmm_alloc_internal(uint32_t size, vmm_region_t** list, uint32_t* pd, int user_space);
+
+
 vmm_region_t* vmm_region_alloc() {
+
+   
     if (!region_slab.pool_start) vmm_region_slab_init();
 
    if (!region_slab.free_list) {
@@ -69,12 +76,18 @@ uint32_t* vmm_create_process_page_directory() {
     // Map the new page directory temporarily to TEMP_MAP
     write_serial_string("[vmm_create_process_page_directory] Mapping PD page to TEMP_MAP\n");
     uintptr_t TEMP_MAP = vmm_temp_map((uintptr_t)pd_phys, PAGE_PRESENT | PAGE_WRITE);
+
+    
    
 
     uint32_t* pd_virt = (uint32_t*)TEMP_MAP;
 
+     
+
     write_serial_string("[vmm_create_process_page_directory] Clearing PD memory\n");
     memsets(pd_virt, 0, PAGE_SIZE);
+
+     
 
     // Clear lower half (user space)
     write_serial_string("[vmm_create_process_page_directory] Clearing lower half of PD\n");
@@ -82,20 +95,27 @@ uint32_t* vmm_create_process_page_directory() {
         pd_virt[i] = 0;
     }
 
+    
+
     // Copy kernel mappings from current PD
     write_serial_string("[vmm_create_process_page_directory] Copying kernel mappings\n");
     for (int i = KERNEL_PD_INDEX; i < 1023; i++) {
         pd_virt[i] = RECURSIVE_PAGE_DIR[i];
     }
 
+   
+
     // Set recursive mapping
     pd_virt[1023] = (uintptr_t)pd_phys | PAGE_PRESENT | PAGE_WRITE;
     write_serial_string("[vmm_create_process_page_directory] Set recursive PDE at 1023 to: ");
     serial_write_hex32(pd_virt[1023]); write_serial_string("\n");
 
+   
+
     // Unmap TEMP_MAP
     write_serial_string("[vmm_create_process_page_directory] Unmapping TEMP_MAP\n");
    vmm_temp_unmap(TEMP_MAP, false);
+   
 
     return pd_phys;
 }
@@ -117,6 +137,10 @@ void vmm_init() {
 
 void vmm_init_process(process_t* proc) {
     proc->page_directory = vmm_create_process_page_directory();
+
+   
+    
+   
 
     // Allocate a new free list
     vmm_region_t* user_init = vmm_region_alloc();
@@ -213,46 +237,25 @@ void vmm_region_free(vmm_region_t* node) {
 
 void* vmm_alloc_kernel(uint32_t size) {
     size = align_up(size);
-    return vmm_alloc_internal(size, &kernel_space_free_list, NULL, false);
-}
-
-void* vmm_alloc_user(uint32_t size, process_t* proc) {
-    if (!proc) panic("[vmm_alloc_user] NULL process passed");
-    size = align_up(size);
-    return vmm_alloc_internal(size, &proc->user_space_free_list, proc->page_directory, true);
-}
-
-static void* vmm_alloc_internal(uint32_t size, vmm_region_t** list, uint32_t* pd, bool user_space) {
-    vmm_region_t* curr = *list;
+    vmm_region_t* curr = kernel_space_free_list;
     vmm_region_t* prev = NULL;
 
     while (curr) {
         if (curr->size >= size) {
-            uint32_t result = curr->start;
+            uintptr_t result = curr->start;
 
             for (uint32_t offset = 0; offset < size; offset += PAGE_SIZE) {
-                uint32_t phys = pmm_alloc_page();
-                if (!phys)
-                    panic("[vmm_alloc] pmm_alloc_page failed");
-
-                uint32_t flags = PAGE_PRESENT | PAGE_WRITE;
-                if (user_space) flags |= PAGE_USER;
-
-                if (user_space)
-                    user_page_map(pd, result + offset, phys, flags);
-                else
-                    kernel_page_map(result + offset, phys, flags);
+                uintptr_t phys = pmm_alloc_page();
+                if (!phys) panic("vmm_alloc_kernel: Out of physical memory");
+                kernel_page_map(result + offset, phys, PAGE_PRESENT | PAGE_WRITE);
             }
 
-            // Adjust region
+            // Trim or remove region
             curr->start += size;
             curr->size -= size;
-
             if (curr->size == 0) {
-                if (prev)
-                    prev->next = curr->next;
-                else
-                    *list = curr->next;
+                if (prev) prev->next = curr->next;
+                else kernel_space_free_list = curr->next;
                 vmm_region_free(curr);
             }
 
@@ -263,8 +266,46 @@ static void* vmm_alloc_internal(uint32_t size, vmm_region_t** list, uint32_t* pd
         curr = curr->next;
     }
 
-    return NULL; // Allocation failed
+    return NULL; // Out of virtual memory
 }
+
+void* vmm_alloc_user(uint32_t size, process_t* proc) {
+    if (!proc) panic("vmm_alloc_user: NULL process");
+
+    vmm_region_t* curr = proc->user_space_free_list;
+    vmm_region_t* prev = NULL;
+  
+    while (curr) {
+        if (curr->size >= size) {
+            uintptr_t result = curr->start;
+
+            for (uint32_t offset = 0; offset < size; offset += PAGE_SIZE) {
+                uintptr_t phys = pmm_alloc_page();
+                if (!phys) panic("vmm_alloc_user: Out of physical memory");
+                user_page_map(proc->page_directory, result + offset, phys, PAGE_PRESENT | PAGE_WRITE | PAGE_USER);
+            }
+           
+
+            // Trim or remove region
+            curr->start += size;
+            curr->size -= size;
+            if (curr->size == 0) {
+                if (prev) prev->next = curr->next;
+                else proc->user_space_free_list = curr->next;
+                vmm_region_free(curr);
+            }
+
+            return (void*)result;
+        }
+
+        prev = curr;
+        curr = curr->next;
+    }
+
+    return NULL;
+}
+
+
 
 
 void vmm_free_user(void* addr, uint32_t size, process_t* proc) {
@@ -275,7 +316,7 @@ void vmm_free_user(void* addr, uint32_t size, process_t* proc) {
 
     // Unmap all user pages
     for (uint32_t offset = 0; offset < size; offset += PAGE_SIZE) {
-        user_page_unmap(proc->page_directory, vaddr + offset);
+        paging_unmap_page( vaddr + offset, true); // or user_page_unmap if you have it
     }
 
     vmm_free_internal(addr, size, &proc->user_space_free_list);
@@ -292,13 +333,22 @@ void vmm_free_kernel(void* addr, uint32_t size, bool freephys) {
         paging_unmap_page(vaddr + offset, freephys); // or kernel_page_unmap if you have it
     }
 
+   
+
     vmm_free_internal(addr, size, &kernel_space_free_list);
+
+    
+
+     
 }
 
 
 static void vmm_free_internal(void* addr, uint32_t size, vmm_region_t** list) {
+       
     vmm_region_t* node = vmm_region_alloc();
     if (!node) panic("Out of VMM region slab nodes");
+
+   
 
     node->start = (uintptr_t)addr;
     node->size = size;
@@ -321,8 +371,9 @@ void* vmm_temp_map(uintptr_t phys, uint32_t flags) {
 }
 
 void vmm_temp_unmap(void* virt_addr, bool freephys) {
-    // Unmap the single page
-    paging_unmap_page((uintptr_t)virt_addr);
+
+   
+
 
     // Free the kernel region
     vmm_free_kernel(virt_addr, PAGE_SIZE, freephys);

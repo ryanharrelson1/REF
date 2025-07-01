@@ -1,6 +1,7 @@
 #include "tss.h"
 #include "gdt.h"
 #include "../alarm/panic.h"
+#include "../consol/serial.h"
 
 struct tss_entry_t tss_entry;
 
@@ -12,6 +13,15 @@ static void write_tss(int gdt_index, uint32_t kernel_ss, uint32_t kernel_esp){
     for(uint32_t i = 0; i < sizeof(tss_entry); i++) {
         ((uint8_t*)&tss_entry)[i] = 0;
     }
+
+  
+    write_serial_string("[write_tss] Writing TSS at GDT index ");
+    serial_write_hex32(gdt_index);
+    write_serial_string(" with kernel SS: ");
+    serial_write_hex32(kernel_ss);
+    write_serial_string(" and ESP: ");  
+    serial_write_hex32(kernel_esp);
+    write_serial_string("\n");
 
 
     tss_entry.ss0 = kernel_ss;
@@ -34,20 +44,28 @@ static void write_tss(int gdt_index, uint32_t kernel_ss, uint32_t kernel_esp){
 
 
 void tss_install(int gdt_index, uint32_t kernel_ss, uint32_t kernel_esp){
+write_serial_string("[tss_install] Installing TSS at GDT index ");
+serial_write_hex32(gdt_index);
+write_serial_string(" with kernel SS: ");
+serial_write_hex32(kernel_ss);
+write_serial_string(" and ESP: ");  
+    serial_write_hex32(kernel_esp);
+  
+    
+
+
     write_tss(gdt_index, kernel_ss, kernel_esp);
 
-    
-   
-    tss_flush();
 
 
-    tss_self_test();
+    //tss_self_test();
 
     
 }
 
 void set_kernel_stack(uint32_t stack){
     tss_entry.esp0 = stack;
+      tss_entry.ss0 = 0x10; // Kernel data segment
 }
 
 

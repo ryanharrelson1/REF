@@ -3,11 +3,8 @@
 #include "../memset.h"
 #include "../consol/serial.h"
 #include "../page/paging.h"
+#include "../gdt/tss.h"
 
-
-#define TEMP_COPY_ADDR 0xBFF02000
-#define TEMP_PD_MAP  0xBFF00000
-#define TEMP_PT_MAP  0xBFF01000
 
 
 extern uint8_t _binary_user_mode_bin_start[];
@@ -27,33 +24,35 @@ uintptr_t walk_process_page_table(uint32_t* pd_phys, uintptr_t virt_addr) {
     uint32_t pt_index = (virt_addr >> 12) & 0x3FF;
 
     // Temporarily map page directory
-    kernel_page_map(TEMP_PD_MAP, (uintptr_t)pd_phys, PAGE_PRESENT | PAGE_WRITE);
-    uint32_t* pd_virt = (uint32_t*)TEMP_PD_MAP;
+      uint32_t* pd_virt = (uint32_t*)vmm_temp_map((uintptr_t)pd_phys, PAGE_PRESENT | PAGE_WRITE);
+ 
 
     uint32_t pt_entry_raw = pd_virt[pd_index];
     if (!(pt_entry_raw & PAGE_PRESENT)) {
-        paging_unmap_page(TEMP_PD_MAP);
+          vmm_temp_unmap(pd_virt, false); // Unmap temporary mapping
         return 0; // Not present
     }
 
     uintptr_t pt_phys = pt_entry_raw & ~0xFFF;
 
+      vmm_temp_unmap(pd_virt, false);
+
     // Temporarily map the page table
-    kernel_page_map(TEMP_PT_MAP, pt_phys, PAGE_PRESENT | PAGE_WRITE);
-    uint32_t* pt_virt = (uint32_t*)TEMP_PT_MAP;
+    uint32_t* pt_virt = (uint32_t*)vmm_temp_map(pt_phys, PAGE_PRESENT | PAGE_WRITE);
+
+
 
     uint32_t page_entry = pt_virt[pt_index];
     uintptr_t phys = (page_entry & PAGE_PRESENT) ? (page_entry & ~0xFFF) : 0;
 
     // Unmap temp mappings
-    paging_unmap_page(TEMP_PT_MAP);
-    paging_unmap_page(TEMP_PD_MAP);
+    vmm_temp_unmap(pt_virt, false);
 
     return phys;
 }
 
 
-void copy_to_process(process_t* proc, void* dst_virt, const void* src, size_t size) {
+void copy_to_process(process_t* proc, void* dst_virt, const void* src_phys_addr, size_t size) {
     uintptr_t dst = (uintptr_t)dst_virt;
     uintptr_t src_offset = 0;
 
@@ -68,20 +67,32 @@ void copy_to_process(process_t* proc, void* dst_virt, const void* src, size_t si
             copy_len = size - src_offset;
         }
 
-        // Resolve physical address from the user process page directory
-        uintptr_t phys = walk_process_page_table(proc->page_directory, virt_page);
-        if (!phys) {
-            panic("copy_to_process: page not mapped in target process");
+        // Get physical address of destination
+        uintptr_t dst_phys = walk_process_page_table(proc->page_directory, virt_page);
+        if (!dst_phys) {
+            panic("copy_to_process: target page not mapped");
         }
 
-        // Temporarily map physical page into kernel space
-        kernel_page_map(TEMP_COPY_ADDR, phys, PAGE_PRESENT | PAGE_WRITE);
+        // Map destination
+        void* dst_virt_temp = vmm_temp_map(dst_phys, PAGE_PRESENT | PAGE_WRITE);
+        if (!dst_virt_temp) panic("copy_to_process: failed to map destination");
 
-        // Do the copy
-        memcpys((void*)(TEMP_COPY_ADDR + page_offset), (const void*)((uintptr_t)src + src_offset), copy_len);
+        // Map source
+        uintptr_t src_page_phys = ((uintptr_t)src_phys_addr + src_offset) & ~0xFFF;
+        size_t src_page_offset = ((uintptr_t)src_phys_addr + src_offset) & 0xFFF;
 
-        // Unmap temporary mapping
-        paging_unmap_page(TEMP_COPY_ADDR);
+        void* src_virt_temp = vmm_temp_map(src_page_phys, PAGE_PRESENT);
+        if (!src_virt_temp) panic("copy_to_process: failed to map source");
+
+        // Do copy
+        memcpys(
+            (void*)((uintptr_t)dst_virt_temp + page_offset),
+            (const void*)((uintptr_t)src_virt_temp + src_page_offset),
+            copy_len
+        );
+
+        vmm_temp_unmap(dst_virt_temp, false);
+        vmm_temp_unmap(src_virt_temp, false);
 
         src_offset += copy_len;
     }
@@ -91,6 +102,7 @@ void copy_to_process(process_t* proc, void* dst_virt, const void* src, size_t si
 
 
 void vmm_load_usermode(process_t* proc) {
+ 
 
     write_serial_string("proccess pointer:");
     serial_write_hex32(proc);
@@ -98,15 +110,33 @@ void vmm_load_usermode(process_t* proc) {
     uint32_t user_bin_size = (uint32_t)(_binary_user_mode_bin_end - _binary_user_mode_bin_start);
     uint32_t aligned_size = align_up(user_bin_size);
 
+    
+    write_serial_string("[vmm_load_usermode] Loading user mode process\n");
+    serial_write_hex32(aligned_size);
+    write_serial_string("\n");
+    serial_write_hex32(_binary_user_mode_bin_start); 
+    
+    // Disable interrupts before modifying page tables
+
     // Initialize the process VMM structures and page directory
     vmm_init_process(proc);
+    
+
+     // Disable interrupts before modifying page tables
 
 
     // Allocate virtual memory in the user space for the binary
-    void* user_virt = vmm_alloc(aligned_size, proc, false);
+    void* user_virt = vmm_alloc_user(aligned_size, proc);
     if (!user_virt) {
         panic("Failed to allocate user virtual memory");
     }
+    
+
+    write_serial_string("[vmm_alloc_user] Returned virtual address: ");
+serial_write_hex32((uintptr_t)user_virt);
+write_serial_string("\n");
+// Disable interrupts before modifying page tables
+
 
      
 
@@ -115,41 +145,71 @@ void vmm_load_usermode(process_t* proc) {
  
     copy_to_process(proc, user_virt, _binary_user_mode_bin_start, user_bin_size);
     
+    
 
      // Disable interrupts before modifying page tables
 
 
-    kernel_page_map(0xBFF00400,(uintptr_t)proc->page_directory, PAGE_PRESENT | PAGE_WRITE);
-
-    uint32_t* pd_virt = (uint32_t*)0xBFF00400;
-
+    uint32_t* pd_virt = (uint32_t*)vmm_temp_map((uintptr_t)proc->page_directory, PAGE_PRESENT | PAGE_WRITE);
     uint32_t pde = pd_virt[1]; // 0x00400000 is at PDE[1]
     write_serial_string("value phys:");
-   serial_write_hex32(pde);
+    serial_write_hex32(pde);
+    vmm_temp_unmap(pd_virt, false);
+     
+   uint32_t* pd_virtss = (uint32_t*)vmm_temp_map((uintptr_t)proc->page_directory, PAGE_PRESENT | PAGE_WRITE);
+        uint32_t pdes = pd_virt[1]; // index 1 = 0x00400000
+    write_serial_string("PDE[1] = ");
+    serial_write_hex32(pde);
+    write_serial_string("\n");
 
-   asm volatile("hlt");
+    uintptr_t pt_phys = pde & ~0xFFF;
+    uint32_t* pt_virt = (uint32_t*)vmm_temp_map(pt_phys, PAGE_PRESENT | PAGE_WRITE);
+    write_serial_string("PTE[0] = ");
+    serial_write_hex32(pt_virt[0]); // offset 0 in 0x00400000
+    write_serial_string("\n");
+
+    vmm_temp_unmap(pt_virt, false);
+    vmm_temp_unmap(pd_virt, false);
+    
+  
 
 
  
 
     // Load the process's page directory (CR3)
     cpu_load_cr3((uintptr_t)proc->page_directory);
+    
+
+    // Disable interrupts before switching to user mode
+
+    uintptr_t phys = walk_process_page_table(proc->page_directory, 0x00400000);
+    write_serial_string("[DEBUG] virt 0x00400000 mapped to phys = ");
+    serial_write_hex32(phys);
+    write_serial_string("\n");
+    // Disable interrupts before switching to user mode
+
+
+    
 
     // Setup user mode stack somewhere in user space (example)
     // Allocate one page for user stack at top of user space
-    void* user_stack = vmm_alloc(PAGE_SIZE, proc, false);
+    void* user_stack =  vmm_alloc_user(aligned_size, proc);
     if (!user_stack) {
         panic("Failed to allocate user stack");
     }
+
+  
 
     // Calculate stack top address (stack grows downward)
     uintptr_t user_stack_top = (uintptr_t)user_stack + PAGE_SIZE;
   
     write_serial_string("loaded user procces ");
     serial_write_hex32(user_virt);
+
+      
   
     // Switch to user mode and jump to user program start
-    //cpu_enter_user_mode((uintptr_t)user_virt, user_stack_top);
+   // cpu_enter_user_mode((uintptr_t)user_virt, user_stack_top);
 
     // Should never return here
     //panic("Returned from user mode unexpectedly");

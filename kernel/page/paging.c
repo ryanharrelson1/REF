@@ -4,30 +4,19 @@
 #include "../consol/serial.h"
 #include "../pmm/pmm.h"
 #include "../vmm/vmm.h"
-
-
-
-
-
 #define PDE_PRESENT 0x1
 #define PDE_RW 0x2
 #define PDE_USER 0x4
-
 #define PTE_PRESENT 0x1
 #define PTE_RW 0x2
 #define PTE_USER 0x4
 #define ALIGN_UP(x, a) (((x) + ((a)-1)) & ~((a)-1))
-#define TEMP_VIRT_ADDR 0xCAFEB000 
 #define HIGHER_HALF_STACK_VADDR  ((void*)0xC0090000)
-#define TEMP_PD_MAP  0xBFF00000
-#define TEMP_PT_MAP  0xBFF01000
-
 #define KERNEL_VIRTUAL_BASE 0xC0000000
-
-
+#define RECURSIVE_PAGE_DIR ((uint32_t*)0xFFFFF000)
 
  extern uint32_t page_dir[]; 
-#define RECURSIVE_PAGE_DIR ((uint32_t*)0xFFFFF000)
+
 
 
 // Helper: flush TLB for a single page
@@ -37,11 +26,7 @@ static inline void flush_tlb_single(uintptr_t addr) {
       write_serial_string("\n");
     __asm__ volatile("invlpg (%0)" ::"r"(addr) : "memory");
 }
-
-
-
-
-
+// Helper: flush TLB for all pages
 static inline void flush_tlb() {
     asm volatile (
         "mov %%cr3, %%eax\n"
@@ -53,18 +38,9 @@ static inline void flush_tlb() {
 }
 
 
-
-
-
-
-
-
-
-
 uint32_t* get_page_table_virt(uint32_t pd_index) {
     return (uint32_t*)(0xFFC00000 + (pd_index * PAGE_SIZE));
 }
-
 
 void kernel_page_map(uintptr_t virt, uintptr_t phys, uint32_t flags){
      write_serial_string("[paging_map_page] Called with virt=");
@@ -74,9 +50,6 @@ void kernel_page_map(uintptr_t virt, uintptr_t phys, uint32_t flags){
     write_serial_string(", flags=");
     serial_write_hex32(flags);
     write_serial_string("\n");
-
-
-
 
     uint32_t pd_index = (virt >> 22) & 0x3FF;
     uint32_t pt_index = (virt >> 12) & 0x3FF;
@@ -92,9 +65,6 @@ void kernel_page_map(uintptr_t virt, uintptr_t phys, uint32_t flags){
     write_serial_string("[paging_map_page] PDE value: 0x");
     serial_write_hex32(pd_entry);
     write_serial_string("\n");
-
-      
-
 
 
     if(!(pd_entry & PDE_PRESENT)){
@@ -131,9 +101,7 @@ void kernel_page_map(uintptr_t virt, uintptr_t phys, uint32_t flags){
         serial_write_hex32(pd_index);
         write_serial_string(" to 0x");
         serial_write_hex32(RECURSIVE_PAGE_DIR[pd_index]);
-        write_serial_string("\n");
-        
-      
+        write_serial_string("\n");  
     
     }
 
@@ -168,25 +136,22 @@ void user_page_map(uint32_t* pd_phys, uintptr_t virt, uintptr_t phys, uint32_t f
     serial_write_hex32(flags);
     write_serial_string("\n");
     serial_write_hex32(pd_phys);
-
   
     uint32_t pd_index = (virt >> 22) & 0x3FF;
     uint32_t pt_index = (virt >> 12) & 0x3FF;
 
     // Map the page directory temporarily
-    kernel_page_map(TEMP_PD_MAP, (uintptr_t)pd_phys, PTE_PRESENT | PTE_RW);
-    uint32_t* pd_virt = (uint32_t*)TEMP_PD_MAP;
-
+      uint32_t* pd_virt = (uint32_t*)vmm_temp_map((uintptr_t)pd_phys, PAGE_PRESENT | PAGE_WRITE);
+    
     write_serial_string("[paging_map_page_for_pd] pd_index=0x");
     serial_write_hex32(pd_index);
     write_serial_string(", pt_index=0x");
     serial_write_hex32(pt_index);
     write_serial_string("\n");
-serial_write_hex32(pd_virt);
-
-
+  serial_write_hex32(pd_virt);
 
     uintptr_t pt_phys;
+    uint32_t* pt_virt;
 
     // Allocate new PT if needed
     if (!(pd_virt[pd_index] & PTE_PRESENT)) {
@@ -194,28 +159,26 @@ serial_write_hex32(pd_virt);
         if (!pt_phys)
             panic("Failed to allocate page table");
 
-        pd_virt[pd_index] = pt_phys | PTE_PRESENT | PTE_RW;
+        pd_virt[pd_index] = pt_phys | PTE_PRESENT | PTE_RW | PTE_USER;
+       
         
-        kernel_page_map(TEMP_PT_MAP + PAGE_SIZE, pt_phys, PTE_PRESENT | PTE_RW);
-        memsets((void*)(TEMP_PT_MAP + PAGE_SIZE), 0, PAGE_SIZE);
+         pt_virt = (uint32_t*)vmm_temp_map(pt_phys, PAGE_PRESENT | PAGE_WRITE);
+        
+       memsets(pt_virt, 0, PAGE_SIZE);
+       
+        
     } else {
-        pt_phys = pd_virt[pd_index] & ~0xFFF;
-        kernel_page_map(TEMP_PT_MAP + PAGE_SIZE, pt_phys, PTE_PRESENT | PTE_RW);
+          pt_phys = pd_virt[pd_index] & ~0xFFF;
+        pt_virt = (uint32_t*)vmm_temp_map(pt_phys, PAGE_PRESENT | PAGE_WRITE);
+        
     }
 
-     
+        vmm_temp_unmap(pd_virt, false); // Done with PD
 
-      uint32_t* pt_virt = (uint32_t*)(TEMP_PT_MAP + PAGE_SIZE);
-       
     pt_virt[pt_index] = (phys & ~0xFFF) | (flags & 0xFFF) | PTE_PRESENT;
-    
-    
     // Unmap TEMP_MAPs
-    paging_unmap_page(TEMP_PT_MAP + PAGE_SIZE,true);
-    paging_unmap_page(TEMP_PD_MAP, true);
+    vmm_temp_unmap(pt_virt, false); // Done with PT
 
-  
-   
 }
 
 void paging_unmap_page(uintptr_t virtual_addr, bool free_phys) {
@@ -277,23 +240,9 @@ void paging_unmap_page(uintptr_t virtual_addr, bool free_phys) {
 
 void paging_init() {
 
-
-
-
-
     page_dir[0] = 0;
-
-
     flush_tlb();
-
- 
-
-
 }
-
-
-
-
 
 void paging_run_tests() {
 

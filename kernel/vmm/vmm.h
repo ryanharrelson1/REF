@@ -10,7 +10,7 @@
 #define PAGE_PRESENT  0x1
 #define PAGE_WRITE    0x2
 #define PAGE_USER     0x4
-#define VMM_REGION_POOL_VADDR 0xC1000000  // example: kernel high half unused region
+#define VMM_REGION_POOL_VADDR  0xC0F00000  // example: kernel high half unused region
 #define VMM_REGION_POOL_PAGES 4 
 #define KERNEL_PD_INDEX 768 // == 0xC0000000 >> 22
 

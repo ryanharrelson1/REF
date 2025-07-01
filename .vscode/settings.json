@@ -9,6 +9,8 @@
         "serial.h": "c",
         "handler_init.h": "c",
         "stdbool.h": "c",
-        "pmm.h": "c"
+        "pmm.h": "c",
+        "tss.h": "c",
+        "panic.h": "c"
     }
 }
