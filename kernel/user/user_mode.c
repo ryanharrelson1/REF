@@ -209,7 +209,7 @@ write_serial_string("\n");
       
   
     // Switch to user mode and jump to user program start
-   // cpu_enter_user_mode((uintptr_t)user_virt, user_stack_top);
+   cpu_enter_user_mode((uintptr_t)user_virt, user_stack_top);
 
     // Should never return here
     //panic("Returned from user mode unexpectedly");

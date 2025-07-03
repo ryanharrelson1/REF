@@ -5,10 +5,10 @@
 
 struct tss_entry_t tss_entry;
 
-extern void tss_flush(void);
+extern void tss_flush();
 
 
-static void write_tss(int gdt_index, uint32_t kernel_ss, uint32_t kernel_esp){
+void write_tss(int gdt_index, uint32_t kernel_ss, uint32_t kernel_esp){
 
     for(uint32_t i = 0; i < sizeof(tss_entry); i++) {
         ((uint8_t*)&tss_entry)[i] = 0;
@@ -39,29 +39,15 @@ static void write_tss(int gdt_index, uint32_t kernel_ss, uint32_t kernel_esp){
 
     gdt_set_gate(gdt_index, base, limit, 0x89, 0x00);
 
+    write_serial_string("[DEBUG] Written TSS esp0 = ");
+    serial_write_hex32(tss_entry.esp0);
+    write_serial('\n');
+
 }
 
 
 
-void tss_install(int gdt_index, uint32_t kernel_ss, uint32_t kernel_esp){
-write_serial_string("[tss_install] Installing TSS at GDT index ");
-serial_write_hex32(gdt_index);
-write_serial_string(" with kernel SS: ");
-serial_write_hex32(kernel_ss);
-write_serial_string(" and ESP: ");  
-    serial_write_hex32(kernel_esp);
-  
-    
 
-
-    write_tss(gdt_index, kernel_ss, kernel_esp);
-
-
-
-    //tss_self_test();
-
-    
-}
 
 void set_kernel_stack(uint32_t stack){
     tss_entry.esp0 = stack;

@@ -44,11 +44,10 @@ void kernel_main() {
  init_serial();
 // Disable interrupts
 gdt_install();
-uint32_t test_stack = *(volatile uint32_t*)tss_entry.esp0;// Read the kernel stack pointer from TSS
+
     write_serial_string("[DEBUG] Kernel stack pointer (ESP0) = ");
-    serial_write_hex32(test_stack);
+    serial_write_hex32(tss_entry.esp0);
     write_serial_string("\n");
-    asm volatile ("hlt"); // Disable interrupts
 idt_install();
 pic_remap();
 handlers_install();
