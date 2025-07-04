@@ -178,6 +178,8 @@ write_serial_string("\n");
 
     // Load the process's page directory (CR3)
     cpu_load_cr3((uintptr_t)proc->page_directory);
+
+       set_kernel_stack((uintptr_t)proc->kernel_stack);
     
 
     // Disable interrupts before switching to user mode
@@ -187,6 +189,11 @@ write_serial_string("\n");
     serial_write_hex32(phys);
     write_serial_string("\n");
     // Disable interrupts before switching to user mode
+
+
+
+
+     // Disable interrupts before switching to user mode
 
 
     
@@ -205,6 +212,8 @@ write_serial_string("\n");
   
     write_serial_string("loaded user procces ");
     serial_write_hex32(user_virt);
+    serial_write_hex32(tss_entry.esp0);
+    write_serial_string("\n");
 
       
   

@@ -28,7 +28,7 @@ static inline uint32_t align_up(uint32_t val) {
 }
 
 static void vmm_free_internal(void* addr, uint32_t size, vmm_region_t** list);
-void* vmm_alloc_internal(uint32_t size, vmm_region_t** list, uint32_t* pd, int user_space);
+
 
 
 vmm_region_t* vmm_region_alloc() {
@@ -151,6 +151,10 @@ void vmm_init_process(process_t* proc) {
     user_init->next = NULL;
 
     proc->user_space_free_list = user_init;
+
+
+    proc->kernel_stack = vmm_alloc_kernel(PAGE_SIZE);
+      if (!proc->kernel_stack) panic("Failed to allocate kernel stack for process");
 }
 
 

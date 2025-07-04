@@ -66,6 +66,10 @@ parse_memory_map(multiboot_info_ptr);
 
 
 
+ 
+
+
+
 
 
 
