@@ -26,12 +26,12 @@ void write_tss(int gdt_index, uint32_t kernel_ss, uint32_t kernel_esp){
 
     tss_entry.ss0 = kernel_ss;
     tss_entry.esp0 = kernel_esp;
-    tss_entry.cs = 0x0B;
-    tss_entry.ss = 0x13;
-    tss_entry.ds = 0x13;
-    tss_entry.es = 0x13;
-    tss_entry.fs = 0x13;
-    tss_entry.gs = 0x13;
+    tss_entry.cs = 0x08;
+    tss_entry.ss = 0x10;
+    tss_entry.ds = 0x10;
+    tss_entry.es = 0x10;
+    tss_entry.fs = 0x10;
+    tss_entry.gs = 0x10;
     tss_entry.iomap_base = sizeof(tss_entry);
 
     uint32_t base = (uint32_t)&tss_entry;
@@ -60,7 +60,7 @@ void tss_self_test(void)
     if (tss_entry.esp0 == 0 || tss_entry.ss0 == 0)
         panic("TSS: esp0 or ss0 not initialized");
 
-    if (tss_entry.cs != 0x0B || tss_entry.ss != 0x13)
+    if (tss_entry.cs != 0x08 || tss_entry.ss != 0x10)
         panic("TSS: Segment selectors incorrect");
 
     if (tss_entry.iomap_base != sizeof(tss_entry))

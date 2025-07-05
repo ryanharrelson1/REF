@@ -7,7 +7,7 @@ extern void isr_double_fault_stub(void);
 extern void isr_gpf_stub(void);
 extern void isr_page_fault_stub(void);
 extern void isr_generic_exception_stub(void);
-extern void isr_syscall();
+extern void isr_syscall(void);
 
 
 

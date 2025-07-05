@@ -35,6 +35,8 @@ static inline void cpu_load_cr3(uint32_t cr3);
 
 static process_t test_proc;
 
+extern void isr_syscall(void);
+
 
 
 
@@ -58,11 +60,17 @@ parse_memory_map(multiboot_info_ptr);
 
  vmm_init();
 
+   write_serial_string("[KERNEL] Calling isr_syscall manually...\n");
+    isr_syscall();  // direct call
 
- write_serial_string("[kernel_main] user test  ");
+// __asm__ __volatile__("int $0x80");
 
 
- vmm_load_usermode(&test_proc);
+
+ //write_serial_string("[kernel_main] user test  ");
+
+
+ //vmm_load_usermode(&test_proc);
 
 
 

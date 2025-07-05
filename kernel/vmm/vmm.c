@@ -153,8 +153,16 @@ void vmm_init_process(process_t* proc) {
     proc->user_space_free_list = user_init;
 
 
-    proc->kernel_stack = vmm_alloc_kernel(PAGE_SIZE);
-      if (!proc->kernel_stack) panic("Failed to allocate kernel stack for process");
+
+
+      vmm_region_t* kernel_region = vmm_region_alloc();
+    if (!kernel_region) panic("Failed to alloc process kernel region");
+
+    kernel_region->start = KERNEL_HEAP_START;
+    kernel_region->size = KERNEL_HEAP_END - KERNEL_HEAP_START;   
+    kernel_region->next = NULL;
+
+    proc->kernel_space_free_list = kernel_region;
 }
 
 
@@ -260,6 +268,40 @@ void* vmm_alloc_kernel(uint32_t size) {
             if (curr->size == 0) {
                 if (prev) prev->next = curr->next;
                 else kernel_space_free_list = curr->next;
+                vmm_region_free(curr);
+            }
+
+            return (void*)result;
+        }
+
+        prev = curr;
+        curr = curr->next;
+    }
+
+    return NULL; // Out of virtual memory
+}
+
+void* vmm_alloc_kernel_for_proc(uint32_t size, process_t* proc) {
+    size = align_up(size);
+    vmm_region_t* curr = proc->kernel_space_free_list;
+    vmm_region_t* prev = NULL;
+
+    while (curr) {
+        if (curr->size >= size) {
+            uintptr_t result = curr->start;
+
+            for (uint32_t offset = 0; offset < size; offset += PAGE_SIZE) {
+                uintptr_t phys = pmm_alloc_page();
+                if (!phys) panic("vmm_alloc_kernel_for_proc: Out of physical memory");
+                kernel_page_map(result + offset, phys, PAGE_PRESENT | PAGE_WRITE);
+            }
+
+            // Trim or remove region
+            curr->start += size;
+            curr->size -= size;
+            if (curr->size == 0) {
+                if (prev) prev->next = curr->next;
+                else proc->kernel_space_free_list = curr->next;
                 vmm_region_free(curr);
             }
 

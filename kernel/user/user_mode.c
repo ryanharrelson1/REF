@@ -155,8 +155,7 @@ write_serial_string("\n");
     write_serial_string("value phys:");
     serial_write_hex32(pde);
     vmm_temp_unmap(pd_virt, false);
-     
-   uint32_t* pd_virtss = (uint32_t*)vmm_temp_map((uintptr_t)proc->page_directory, PAGE_PRESENT | PAGE_WRITE);
+
         uint32_t pdes = pd_virt[1]; // index 1 = 0x00400000
     write_serial_string("PDE[1] = ");
     serial_write_hex32(pde);
@@ -179,7 +178,11 @@ write_serial_string("\n");
     // Load the process's page directory (CR3)
     cpu_load_cr3((uintptr_t)proc->page_directory);
 
-       set_kernel_stack((uintptr_t)proc->kernel_stack);
+       proc->kernel_stack = vmm_alloc_kernel_for_proc(PAGE_SIZE, proc);
+       if (!proc->kernel_stack) panic("Failed to allocate kernel stack");
+
+     set_kernel_stack((uintptr_t)proc->kernel_stack + PAGE_SIZE);  // esp0 = top
+
     
 
     // Disable interrupts before switching to user mode
@@ -200,7 +203,7 @@ write_serial_string("\n");
 
     // Setup user mode stack somewhere in user space (example)
     // Allocate one page for user stack at top of user space
-    void* user_stack =  vmm_alloc_user(aligned_size, proc);
+    void* user_stack =  vmm_alloc_user(PAGE_SIZE, proc);
     if (!user_stack) {
         panic("Failed to allocate user stack");
     }
