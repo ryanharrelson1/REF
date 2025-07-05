@@ -26,11 +26,18 @@ typedef struct vmm_region
 } vmm_region_t;
 
 typedef struct process {
+     uint32_t pid;
+
+      uint32_t esp;     // Saved stack pointer
+    uint32_t ebp;     // Base pointer
+    uint32_t eip;     // Instruction pointer
   
     uint32_t* page_directory;               // Physical address of PD
     vmm_region_t* user_space_free_list;     // Tracks user space allocations
     void* kernel_stack;
       vmm_region_t* kernel_space_free_list;
+
+       struct process* next; // Linked list for scheduling
     
 } process_t;
 

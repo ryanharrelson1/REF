@@ -7,7 +7,8 @@ extern isr_gpf_stub_handler
 extern isr_page_fault_stub_handler
 extern isr_generic_exception_stub_handler
 extern syscall
-extern tss_entry  
+extern tss_entry
+extern timer
 
 global isr_divide_by_zero_stub
 isr_divide_by_zero_stub:
@@ -62,11 +63,37 @@ isr_generic_exception_stub:
 global isr_syscall
 
 isr_syscall:
-      cli
+   cli
+    pushad
+    call syscall
+    popad
+    sti
+    iret
 
-    mov eax, esp          ; Read current kernel-mode ESP (after int 0x80 switch)
+.global irq0_stub
+irq0_stub:
+    pusha                     ; Push all general purpose registers
+    push ds
+    push es
+    push fs
+    push gs
 
-    ; Optionally store or push EAX here for logging or testing
-    ; For example: push eax / call some function / pop eax
+    mov ax, 0x10              ; Load kernel data segment selector
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
 
-    hlt                   ; Halt here after reading ESP
+    push eax                  ; Push dummy error code (some handlers expect it)
+    push byte 32              ; Push interrupt number (IRQ0 = 32)
+    call timer          ; Call the C handler
+
+    add esp, 8                ; Clean up stack: int_no + error_code
+
+    pop gs
+    pop fs
+    pop es
+    pop ds
+    popa
+
+    iretd                     ; Return from interrupt

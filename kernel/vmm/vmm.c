@@ -18,7 +18,9 @@ typedef struct {
 } vmm_region_slab_t;
 
 
-
+// evetually whis is going to be removed later on i dont see a really a use for it.
+// well rn the temp map func is using this to alloc temp adresses
+// this might be really slow im later going to implent static mapped adress pool of a few adress that it can use dynamically.
 static vmm_region_t* kernel_space_free_list = NULL;
 
 static vmm_region_slab_t region_slab = {0};

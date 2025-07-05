@@ -120,6 +120,8 @@ void vmm_load_usermode(process_t* proc) {
 
     // Initialize the process VMM structures and page directory
     vmm_init_process(proc);
+
+    
     
 
      // Disable interrupts before modifying page tables
@@ -130,6 +132,8 @@ void vmm_load_usermode(process_t* proc) {
     if (!user_virt) {
         panic("Failed to allocate user virtual memory");
     }
+
+    
     
 
     write_serial_string("[vmm_alloc_user] Returned virtual address: ");
@@ -144,6 +148,8 @@ write_serial_string("\n");
     // Copy user binary into allocated virtual memory
  
     copy_to_process(proc, user_virt, _binary_user_mode_bin_start, user_bin_size);
+
+    
     
     
 
@@ -154,12 +160,11 @@ write_serial_string("\n");
     uint32_t pde = pd_virt[1]; // 0x00400000 is at PDE[1]
     write_serial_string("value phys:");
     serial_write_hex32(pde);
-    vmm_temp_unmap(pd_virt, false);
 
-        uint32_t pdes = pd_virt[1]; // index 1 = 0x00400000
-    write_serial_string("PDE[1] = ");
-    serial_write_hex32(pde);
-    write_serial_string("\n");
+    
+
+
+
 
     uintptr_t pt_phys = pde & ~0xFFF;
     uint32_t* pt_virt = (uint32_t*)vmm_temp_map(pt_phys, PAGE_PRESENT | PAGE_WRITE);
@@ -171,17 +176,22 @@ write_serial_string("\n");
     vmm_temp_unmap(pd_virt, false);
     
   
-
+ 
 
  
 
     // Load the process's page directory (CR3)
     cpu_load_cr3((uintptr_t)proc->page_directory);
 
-       proc->kernel_stack = vmm_alloc_kernel_for_proc(PAGE_SIZE, proc);
+
+
+       proc->kernel_stack = vmm_alloc_kernel_for_proc(PAGE_SIZE * 8, proc);
        if (!proc->kernel_stack) panic("Failed to allocate kernel stack");
 
-     set_kernel_stack((uintptr_t)proc->kernel_stack + PAGE_SIZE);  // esp0 = top
+     set_kernel_stack((uintptr_t)proc->kernel_stack + PAGE_SIZE * 8);  // esp0 = top
+
+     serial_write_hex32(proc->kernel_stack);
+    
 
     
 
