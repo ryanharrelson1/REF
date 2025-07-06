@@ -62,24 +62,9 @@ isr_generic_exception_stub:
 global isr_syscall
 
 isr_syscall:
-    cli
-
-    ; Set kernel data segments (CS is already correct)
-    mov ax, 0x10              ; kernel data segment
-    mov ds, ax
-    mov es, ax
-    mov fs, ax
-    mov gs, ax
-    ; DO NOT set `ss` here — it's already fine, and setting it can cause a GPF
-
-    pushad                    ; push general-purpose registers
-
-    mov eax, esp              ; pass pointer to registers
-    push eax
-    call syscall              ; your C function
-    add esp, 4                ; clean up pushed pointer
-
+   cli
+    pushad
+    call syscall
     popad
-
     sti
     iret

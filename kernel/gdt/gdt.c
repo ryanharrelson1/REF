@@ -42,7 +42,7 @@ void gdt_install(void)
 
  
  
-  tss_install(5, 0x10,(uint32_t)stack_top); // Install TSS at GDT index 5 with kernel stack  
+  write_tss(5, 0x10, (uint32_t)stack_top);
 
  gdt_flush((uint32_t)&gdt_ptr);
 

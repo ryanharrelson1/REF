@@ -22,7 +22,7 @@ void handlers_install(void){
 
 
     for (int i = 0; i < 256; i++) {
-        if (i != 0 && i != 8 && i != 13 && i != 14) {
+        if (i != 0 && i != 8 && i != 13 && i != 14 && i != 0x80) {
             idt_set_gate(i, (uint32_t)isr_generic_exception_stub, 0x08, 0x8E);
         }
     }

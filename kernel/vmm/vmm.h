@@ -29,6 +29,7 @@ typedef struct process {
   
     uint32_t* page_directory;               // Physical address of PD
     vmm_region_t* user_space_free_list;     // Tracks user space allocations
+    uint32_t kernelstack;                // Kernel stack pointer for this process
     
 } process_t;
 

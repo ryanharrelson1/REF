@@ -37,7 +37,7 @@ struct __attribute__((packed)) tss_entry_t
 
 extern struct tss_entry_t tss_entry;
 
-void tss_install(int gdt_index, uint32_t kernel_ss, uint32_t kernel_esp);
+ void write_tss(int gdt_index, uint32_t kernel_ss, uint32_t kernel_esp);
 
 void set_kernel_stack(uint32_t stack);
 void tss_self_test(void);

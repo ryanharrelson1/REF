@@ -188,6 +188,14 @@ write_serial_string("\n");
     write_serial_string("\n");
     // Disable interrupts before switching to user mode
 
+ proc->kernelstack = vmm_alloc_kernel(PAGE_SIZE * 6);
+
+ uintptr_t kernel_stack_top = (uintptr_t)proc->kernelstack + PAGE_SIZE * 6;
+
+ set_kernel_stack(kernel_stack_top); // Set the kernel stack pointer for this process
+
+
+
 
     
 
@@ -209,7 +217,7 @@ write_serial_string("\n");
       
   
     // Switch to user mode and jump to user program start
-   // cpu_enter_user_mode((uintptr_t)user_virt, user_stack_top);
+    cpu_enter_user_mode((uintptr_t)user_virt, user_stack_top);
 
     // Should never return here
     //panic("Returned from user mode unexpectedly");
