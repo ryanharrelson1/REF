@@ -167,38 +167,27 @@ size_t pmm_get_used_page_count(void) {
     return total_pages - pmm_get_free_page_count();
 }
 
-void pmm_print_total_memory(void) {
-    uint64_t total_bytes = (memory_end - memory_start);
-
-    serial_write_hex32((uint32_t)total_bytes);
-
+size_t pmm_get_total_page_count(void) {
+    return (memory_end - memory_start) / PAGE_SIZE;
 }
 
 void pmm_print_free_memory(void) {
     size_t free_pages = pmm_get_free_page_count();
-    uint64_t free_bytes = free_pages * PAGE_SIZE;
-    size_t used_pages = pmm_get_free_page_count();
+    size_t total_pages = pmm_get_total_page_count(); // You must have this
 
+    size_t used_pages = total_pages - free_pages;
 
-        write_serial_string("free memory: ");
+    uint64_t free_bytes = (uint64_t)free_pages * PAGE_SIZE;
+    uint64_t used_bytes = (uint64_t)used_pages * PAGE_SIZE;
 
-    serial_write_hex32((uint32_t)free_bytes);
+    write_serial_string("Free memory: ");
+    serial_write_hex32((uint32_t)free_bytes); // You could also write 64-bit if supported
+    write_serial_string(" bytes\n");
 
-    write_serial_string(" \n");
-    write_serial_string("used memory: ");
-    serial_write_hex32((uint32_t)(used_pages * PAGE_SIZE));
-    write_serial_string(" \n");
-  
-    
-    // If you have a helper to print numbers in decimal or hex, use it here.
-    // Otherwise, let's print hex as example:
-
-    // Print hex representation (assuming write_serial_hex prints uint64_t in hex)
-
-
- 
+    write_serial_string("Used memory: ");
+    serial_write_hex32((uint32_t)used_bytes);
+    write_serial_string(" bytes\n");
 }
-
 
 static inline void pmm_self_test(void) {
     size_t free_before = pmm_get_free_page_count();

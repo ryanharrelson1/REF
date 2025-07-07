@@ -50,6 +50,10 @@ global page_table_vga
 align 4096
 page_table_vga: resd 1024
 
+global page_table_high_1
+align 4096
+page_table_high_1: resd 1024
+
 section .boot
 
 _start:
@@ -118,6 +122,22 @@ setup_paging:
     add edi, 4
     loop .fill_table_high
 
+    ; Setup next high memory page table for 0xC0400000
+    mov edi, page_table_high_1
+    mov ecx, 1024
+    ; Continue physical mapping from where we left off
+    mov esi, 0x00110000
+    add esi, 0x00400000 ; offset by another 4MB
+
+
+.fill_table_high_1:
+    mov eax, esi
+    or eax, 0x3
+    mov [edi], eax
+    add esi, 0x1000
+    add edi, 4
+    loop .fill_table_high_1
+
     mov eax, page_table_low
     or eax, 0x3
     mov [page_dir], eax
@@ -126,6 +146,13 @@ setup_paging:
     or eax, 0x3
     mov edi, page_dir
     add edi, 768*4
+    mov [edi], eax
+
+     ; Map page_table_high_1 at index 769 (0xC0400000)
+    mov eax, page_table_high_1
+    or eax, 0x3
+    mov edi, page_dir
+    add edi, 769*4
     mov [edi], eax
 
     mov eax, 0x000B8000 | 0x3        ; physical VGA + present+RW

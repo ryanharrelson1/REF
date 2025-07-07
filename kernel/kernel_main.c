@@ -24,16 +24,21 @@
 
 extern uint32_t  multiboot_info_ptr;
 extern uint32_t multiboot_magic;
+extern uintptr_t bitmap_phys_end;
+
+
+extern char _kernel_end_phys[];
+
+extern char __bss_end[];
+
+extern char __bss_start[];
 
 
 
-extern struct idt_entry_t idt_entries[];
 
-extern uint32_t idt_addr;
 
-static inline void cpu_load_cr3(uint32_t cr3);
-
-static process_t test_proc;
+// do not remove this line it breaks the usermode jmp
+ process_t test_proc;
 
 
 
@@ -41,6 +46,7 @@ static process_t test_proc;
 
 
 void kernel_main() {
+ 
  init_serial();
 // Disable interrupts
 gdt_install();
@@ -52,15 +58,20 @@ handlers_install();
 
 parse_memory_map(multiboot_info_ptr);
 
+ // Disable interrupts
+
  paging_init();
 
  vmm_init();
 
 
- write_serial_string("[kernel_main] user test  ");
 
+  serial_write_hex32((uintptr_t)__bss_start);
 
- vmm_load_usermode(&test_proc);
+  asm volatile ("hlt"); // Disable interrupts
+
+  // Disable interrupts
+ user_init();
 
 
 
@@ -83,7 +94,7 @@ parse_memory_map(multiboot_info_ptr);
 
     asm volatile ("sti"); // Enable interrupts
 
-    __asm__ volatile("int $0x80");
+     
 
 
 
@@ -94,28 +105,7 @@ parse_memory_map(multiboot_info_ptr);
 }
 
 
-void dump_page_dir(uint32_t *pd_virt) {
-    for (int i = 0; i < 1024; i++) {
-        uint32_t entry = pd_virt[i];
-        if (entry != 0) {
-            write_serial_string("PDE[");
-            serial_write_dec(i);
-            write_serial_string("] = 0x");
-            serial_write_hex32(entry);
-            write_serial_string("\n");
-        }
-    }
-}
 
-
-static inline void cpu_load_cr3(uint32_t cr3) {
-    __asm__ volatile (
-        "mov %0, %%cr3"
-        :
-        : "r"(cr3)
-        : "memory"
-    );
-}
 
 
 

@@ -75,8 +75,11 @@ user_mode.o: user_mode.bin
 syscall.o : kernel/handlers/syscall.c
 	i686-elf-gcc -m32 -ffreestanding -c kernel/handlers/syscall.c -o syscall.o
 
-kernel.elf: kernel_main.o boot.o paging.o io.o serial.o memory_map.o memset.o panic.o pmm.o gdt.o gdt_flush.o tss.o idt.o idt_flush.o pic.o exception.o handlers.o isr_stub.o vmm.o user.o user_mode.o syscall.o
-	i686-elf-ld -T linker.ld -o kernel.elf boot.o kernel_main.o paging.o io.o serial.o memory_map.o memset.o panic.o pmm.o gdt.o gdt_flush.o tss.o idt.o idt_flush.o pic.o exception.o handlers.o isr_stub.o vmm.o user.o user_mode.o syscall.o
+process.o: kernel/user/process.c kernel/user/process.h
+	i686-elf-gcc -m32 -ffreestanding -c kernel/user/process.c -o process.o
+
+kernel.elf: kernel_main.o boot.o paging.o io.o serial.o memory_map.o memset.o panic.o pmm.o gdt.o gdt_flush.o tss.o idt.o idt_flush.o pic.o exception.o handlers.o isr_stub.o vmm.o user.o user_mode.o syscall.o process.o
+	i686-elf-ld -T linker.ld -o kernel.elf boot.o kernel_main.o paging.o io.o serial.o memory_map.o memset.o panic.o pmm.o gdt.o gdt_flush.o tss.o idt.o idt_flush.o pic.o exception.o handlers.o isr_stub.o vmm.o user.o user_mode.o syscall.o process.o
 
 iso: kernel.elf	
 	mkdir -p isodir/boot/grub
@@ -85,7 +88,7 @@ iso: kernel.elf
 	grub-mkrescue -o newos.iso isodir
 
 run: iso
-	qemu-system-i386 -cdrom newos.iso -m 4G -serial stdio 
+	qemu-system-i386 -cdrom newos.iso -m 4G -serial stdio -d int,cpu_reset,guest_errors -D qemu.log
 
 clean: 
 	rm -f *.o kernel.elf newos.iso

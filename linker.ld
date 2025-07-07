@@ -56,8 +56,10 @@ SECTIONS {
     __bss_lma_start = (__data_lma_end + 0xFFF) & ~0xFFF;
 
     .bss ALIGN(4K) : AT(__bss_lma_start) {
-        *(.bss*)
-        *(COMMON)
+    __bss_start = .;
+    *(.bss*)
+    *(COMMON)
+    __bss_end = .;
     }
 
 

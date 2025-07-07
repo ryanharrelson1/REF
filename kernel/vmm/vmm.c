@@ -28,8 +28,8 @@ static inline uint32_t align_up(uint32_t val) {
 }
 
 static void vmm_free_internal(void* addr, uint32_t size, vmm_region_t** list);
-void* vmm_alloc_internal(uint32_t size, vmm_region_t** list, uint32_t* pd, int user_space);
 
+ 
 
 vmm_region_t* vmm_region_alloc() {
 
@@ -165,23 +165,7 @@ void vmm_region_slab_init() {
 
     // Allocate and map physical pages for the slab
     uintptr_t vaddr = VMM_REGION_POOL_VADDR;
-    for (int i = 0; i < VMM_REGION_POOL_PAGES; i++) {
-        void* phys = pmm_alloc_page();
-        if (!phys) panic("Failed to allocate physical page for VMM region slab");
-        uint32_t flags = PAGE_PRESENT | PAGE_WRITE;
-               
-        
-        kernel_page_map(vaddr + i * PAGE_SIZE, (uintptr_t)phys,flags);
-
-        write_serial_string("[vmm] Mapped page ");
-        serial_write_hex32(i);
-        write_serial_string(" -> vaddr: ");
-        serial_write_hex32(vaddr + i * PAGE_SIZE);
-        write_serial_string(" phys: ");
-        serial_write_hex32((uintptr_t)phys);
-        write_serial_string("\n");
-        // flags set to present, writable, user/kernel as needed
-    }
+   
 
     region_slab.pool_start = (vmm_region_t*)vaddr;
     region_slab.capacity = (VMM_REGION_POOL_PAGES * PAGE_SIZE) / sizeof(vmm_region_t);
@@ -272,17 +256,43 @@ void* vmm_alloc_kernel(uint32_t size) {
 void* vmm_alloc_user(uint32_t size, process_t* proc) {
     if (!proc) panic("vmm_alloc_user: NULL process");
 
+
+      write_serial_string("[vmm_alloc_user] Requested size (aligned): ");
+    serial_write_hex32(size);
+    write_serial_string("\n");
+
+
     vmm_region_t* curr = proc->user_space_free_list;
     vmm_region_t* prev = NULL;
   
     while (curr) {
+
+
+          write_serial_string("[vmm_alloc_user] Checking region: start=");
+        serial_write_hex32(curr->start);
+        write_serial_string(", size=");
+        serial_write_hex32(curr->size);
+        write_serial_string("\n");
+
         if (curr->size >= size) {
             uintptr_t result = curr->start;
+
+             write_serial_string("[vmm_alloc_user] Allocating from: ");
+            serial_write_hex32(result);
+            write_serial_string(" to ");
+            serial_write_hex32(result + size - 1);
+            write_serial_string("\n");
 
             for (uint32_t offset = 0; offset < size; offset += PAGE_SIZE) {
                 uintptr_t phys = pmm_alloc_page();
                 if (!phys) panic("vmm_alloc_user: Out of physical memory");
                 user_page_map(proc->page_directory, result + offset, phys, PAGE_PRESENT | PAGE_WRITE | PAGE_USER);
+
+                 write_serial_string("[vmm_alloc_user] Mapped virtual ");
+                serial_write_hex32(result + offset);
+                write_serial_string(" -> physical ");
+                serial_write_hex32(phys);
+                write_serial_string("\n");
             }
            
 
@@ -290,10 +300,19 @@ void* vmm_alloc_user(uint32_t size, process_t* proc) {
             curr->start += size;
             curr->size -= size;
             if (curr->size == 0) {
+                 write_serial_string("[vmm_alloc_user] Region fully used, removing.\n");
                 if (prev) prev->next = curr->next;
                 else proc->user_space_free_list = curr->next;
                 vmm_region_free(curr);
+            } else {
+                 write_serial_string("[vmm_alloc_user] Region partially used, updated start: ");
+                serial_write_hex32(curr->start);
+                write_serial_string("\n");
             }
+
+             write_serial_string("[vmm_alloc_user] Allocation successful at: ");
+            serial_write_hex32(result);
+            write_serial_string("\n");
 
             return (void*)result;
         }
@@ -301,6 +320,10 @@ void* vmm_alloc_user(uint32_t size, process_t* proc) {
         prev = curr;
         curr = curr->next;
     }
+
+        write_serial_string("[vmm_alloc_user] No suitable region found for size ");
+    serial_write_hex32(size);
+    write_serial_string("\n");
 
     return NULL;
 }
