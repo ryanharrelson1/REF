@@ -13,7 +13,7 @@ SECTIONS {
 
     .usermode  ALIGN(4K) : AT(ADDR(.usermode )) {
     _binary_user_mode_bin_start = .;
-      KEEP(*(.data))/* Or match your section name */
+      KEEP(*(.userbin))/* Or match your section name */
     _binary_user_mode_bin_end = .;
   }
 

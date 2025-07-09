@@ -3,7 +3,6 @@
 [ORG 0x0]
 
 _start:
-    mov eax, 1        ; syscall number
     int 0x80          ; trigger syscall
     jmp $             ; hang
 

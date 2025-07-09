@@ -33,6 +33,9 @@ extern char __bss_end[];
 
 extern char __bss_start[];
 
+extern char _binary_user_mode_bin_start[];
+extern char _binary_user_mode_bin_end[];
+
 
 
 
@@ -41,7 +44,7 @@ extern char __bss_start[];
  process_t test_proc;
 
 
-
+  
 
 
 
@@ -66,10 +69,12 @@ parse_memory_map(multiboot_info_ptr);
 
 
 
-  serial_write_hex32((uintptr_t)__bss_start);
 
-  asm volatile ("hlt"); // Disable interrupts
 
+
+
+
+ 
   // Disable interrupts
  user_init();
 

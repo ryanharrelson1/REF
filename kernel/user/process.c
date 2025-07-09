@@ -5,7 +5,7 @@
 #include "../consol/serial.h"
 
 
-volatile uintptr_t scratch = 0;
+process_t *current_process = 0;
 
 
 
@@ -100,12 +100,12 @@ void copy_to_processs(process_t* proc, void* dst_virt, const void* src_phys_addr
 
 process_t* user_space_init(uintptr_t entry_point, size_t size) {
 
+  
 
-    write_serial_string("Addr of scratch: ");
-    serial_write_hex32((uintptr_t)&scratch);
+     write_serial_string("Addr of current_process: ");
+    serial_write_hex32(current_process);
 
-    asm volatile ("hlt");
-
+   // Disable interrupts during critical section
     
   
 
