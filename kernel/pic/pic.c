@@ -34,6 +34,6 @@ void pic_remap(void) {
     outb(PIC2_DATA, ICW4_8086);
 
     // Restore saved masks
-    outb(PIC1_DATA, 0xFF);
-    outb(PIC2_DATA, 0xFF);
+     outb(PIC1_DATA, 0xFE); // 1111 1110
+    outb(PIC2_DATA, 0xFF); // Keep slave fully masked
 }

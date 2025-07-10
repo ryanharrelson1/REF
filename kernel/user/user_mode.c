@@ -14,6 +14,8 @@
 extern uint8_t _binary_user_mode_bin_start[];
 extern uint8_t _binary_user_mode_bin_end[];
 
+extern process_t* current_process;
+
 
 
  void cpu_load_cr3(uintptr_t phys_addr) {
@@ -45,22 +47,17 @@ void user_init() {
 
 
 
- uintptr_t kernel_stack_top = (uintptr_t)shell->kernelstack + PAGE_SIZE * 6;
+ ///uintptr_t kernel_stack_top = (uintptr_t)shell->kernelstack + PAGE_SIZE * 6;
 
- set_kernel_stack(kernel_stack_top); // Set the kernel stack pointer for this process
+ set_kernel_stack(shell->kernelstack); // Set the kernel stack pointer for this process
 
- 
 
-    // Initialize the user stack
-    write_serial_string("[DEBUG] User stack top: ");
-    serial_write_hex32(shell->user_stack_top);
-    write_serial_string("\n");
+   //current_process = shell; // Set the current process to the shell
 
-    // Check address mapping for debugging
-    write_serial_string("[DEBUG] Checking address mapping for 0x01C87A21:\n");
- // check_address_mapping(0x01C87A21);
+   
+  // scheduler_first_switch();
 
-  
+
    
     // Switch to user mode and jump to user program start
     cpu_enter_user_mode((uintptr_t)shell->entry_point, shell->user_stack_top);
@@ -100,52 +97,3 @@ void cpu_enter_user_mode(uintptr_t entry_point, uintptr_t user_stack_top) {
 }
 
 
-void check_address_mapping(uintptr_t vaddr) {
-    uint32_t pd_index = (vaddr >> 22) & 0x3FF;
-    uint32_t pt_index = (vaddr >> 12) & 0x3FF;
-
-    // Get the page directory entry via recursive mapping:
-    uint32_t* page_directory = (uint32_t*)RECURSIVE_PAGING_BASE;
-    uint32_t pd_entry = page_directory[pd_index];
-
-    if (!(pd_entry & PAGE_PRESENT)) {
-        write_serial_string("[DEBUG] Page Fault: No page directory entry at index ");
-        serial_write_hex32(pd_index);
-        write_serial_string("\n");
-        return;
-    }
-
-    // Access page table via recursive mapping:
-    uint32_t* page_table = (uint32_t*)(PAGE_TABLES_BASE + (pd_index << 12));
-    uint32_t pt_entry = page_table[pt_index];
-
-    write_serial_string("[DEBUG] Virtual Addr: ");
-    serial_write_hex32(vaddr);
-    write_serial_string("\n");
-
-    write_serial_string("  PD index: ");
-    serial_write_hex32(pd_index);
-    write_serial_string(" -> Entry: ");
-    serial_write_hex32(pd_entry);
-    write_serial_string("\n");
-
-    write_serial_string("  PT index: ");
-    serial_write_hex32(pt_index);
-    write_serial_string(" -> Entry: ");
-    serial_write_hex32(pt_entry);
-    write_serial_string("\n");
-
-    if (!(pt_entry & PAGE_PRESENT)) {
-        write_serial_string("  [!] Page not present!\n");
-        return;
-    }
-
-    if (!(pt_entry & PAGE_USER)) {
-        write_serial_string("  [!] Page is not user-accessible!\n");
-    }
-
-    uintptr_t phys = pt_entry & 0xFFFFF000;
-    write_serial_string("  Maps to physical address: ");
-    serial_write_hex32(phys);
-    write_serial_string("\n");
-}

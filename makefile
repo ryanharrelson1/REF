@@ -78,8 +78,11 @@ syscall.o : kernel/handlers/syscall.c
 process.o: kernel/user/process.c kernel/user/process.h
 	i686-elf-gcc -m32 -ffreestanding -g -c kernel/user/process.c -o process.o
 
-kernel.elf: kernel_main.o boot.o paging.o io.o serial.o memory_map.o memset.o panic.o pmm.o gdt.o gdt_flush.o tss.o idt.o idt_flush.o pic.o exception.o handlers.o isr_stub.o vmm.o user.o user_mode.o syscall.o process.o
-	i686-elf-ld -T linker.ld -o kernel.elf boot.o kernel_main.o paging.o io.o serial.o memory_map.o memset.o panic.o pmm.o gdt.o gdt_flush.o tss.o idt.o idt_flush.o pic.o exception.o handlers.o isr_stub.o vmm.o user.o user_mode.o syscall.o process.o
+timer.o: kernel/handlers/timer.c kernel/handlers/timer.h
+	i686-elf-gcc -m32 -ffreestanding -g -c kernel/handlers/timer.c -o timer.o
+
+kernel.elf: kernel_main.o boot.o paging.o io.o serial.o memory_map.o memset.o panic.o pmm.o gdt.o gdt_flush.o tss.o idt.o idt_flush.o pic.o exception.o handlers.o isr_stub.o vmm.o user.o user_mode.o syscall.o process.o timer.o
+	i686-elf-ld -T linker.ld -o kernel.elf boot.o kernel_main.o paging.o io.o serial.o memory_map.o memset.o panic.o pmm.o gdt.o gdt_flush.o tss.o idt.o idt_flush.o pic.o exception.o handlers.o isr_stub.o vmm.o user.o user_mode.o syscall.o process.o timer.o
 
 iso: kernel.elf	
 	mkdir -p isodir/boot/grub

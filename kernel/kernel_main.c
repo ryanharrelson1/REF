@@ -13,6 +13,7 @@
 #include "vmm/vmm.h"
 #include "user/user_mode.h"
 #include "memset.h"
+#include "handlers/timer.h"
 
 #define PAGE_SIZE 4096
 #define PAGE_PRESENT 0x1
@@ -55,28 +56,14 @@ void kernel_main() {
 gdt_install();
 
    // Disable interrupts
-idt_install();
-pic_remap();
-handlers_install();
-
-parse_memory_map(multiboot_info_ptr);
-
- // Disable interrupts
-
- paging_init();
-
- vmm_init();
-
-
-
-
-
-
-
-
- 
-  // Disable interrupts
- user_init();
+    idt_install();
+    pit_init();
+    pic_remap();
+    handlers_install();
+    parse_memory_map(multiboot_info_ptr);
+    paging_init();
+    vmm_init();
+    user_init();
 
 
 

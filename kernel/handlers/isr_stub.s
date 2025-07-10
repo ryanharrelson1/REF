@@ -7,7 +7,8 @@ extern isr_gpf_stub_handler
 extern isr_page_fault_stub_handler
 extern isr_generic_exception_stub_handler
 extern syscall
-extern tss_entry  
+extern tss_entry
+extern scheduler_tick
 
 global isr_divide_by_zero_stub
 isr_divide_by_zero_stub:
@@ -68,3 +69,39 @@ isr_syscall:
     popad
     sti
     iret
+
+
+global isr_timer_stub
+
+isr_timer_stub:
+
+   cli                     ; Clear interrupts
+
+    pusha                   ; Push general-purpose registers
+    push ds
+    push es
+    push fs
+    push gs
+
+    mov ax, 0x10            ; Kernel data segment selector
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+
+    push eax
+    call scheduler_tick
+    add esp, 4
+
+    pop gs
+    pop fs
+    pop es
+    pop ds
+    popa
+
+    ; Send End of Interrupt (EOI) to PIC
+    mov al, 0x20
+    out 0x20, al
+
+    sti                     ; Re-enable interrupts
+    iret 

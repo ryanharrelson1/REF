@@ -32,7 +32,30 @@ typedef enum {
     TASK_TERMINATED
 } task_state_t;
 
+typedef struct cpu_context {
+    uint32_t edi;
+    uint32_t esi;
+    uint32_t ebp;
+    uint32_t esp;  // stack pointer (kernel mode)
+    uint32_t ebx;
+    uint32_t edx;
+    uint32_t ecx;
+    uint32_t eax;
+
+    uint32_t eip;   // Instruction pointer
+    uint32_t eflags;
+    uint32_t useresp;  // User-mode ESP (SS:ESP needed for iret)
+    uint32_t cs;
+    uint32_t ds;
+    uint32_t es;
+    uint32_t fs;
+    uint32_t gs;
+    uint32_t ss;
+} cpu_context_t;
+
 typedef struct process {
+
+    uint32_t pid;                          // Process ID
   
     uint32_t* page_directory;               // Physical address of PD
     vmm_region_t* user_space_free_list;     // Tracks user space allocations
@@ -40,6 +63,8 @@ typedef struct process {
    uintptr_t user_stack_top;              // ESP in user mode (needed for restoring)
     uintptr_t entry_point;                 // User EIP for iret return
         task_state_t state;
+
+          cpu_context_t context;  // <- add this
 
     struct process* next; // For linked list or round-robin scheduling
 } process_t;
