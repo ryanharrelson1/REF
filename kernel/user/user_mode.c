@@ -38,8 +38,12 @@ void user_init() {
 
     process_t* shell = user_space_init((uintptr_t)_binary_user_mode_bin_start, bin_size);
 
+    process_t* test = user_space_init((uintptr_t)_binary_user_mode_bin_start, bin_size);
+    process_t* test1 = user_space_init((uintptr_t)_binary_user_mode_bin_start, bin_size);
+    process_t* test2 = user_space_init((uintptr_t)_binary_user_mode_bin_start, bin_size);
+
     // Load the process's page directory (CR3)
-    cpu_load_cr3((uintptr_t)shell->page_directory);
+    //cpu_load_cr3((uintptr_t)shell->page_directory);
     
 
   
@@ -49,18 +53,18 @@ void user_init() {
 
  ///uintptr_t kernel_stack_top = (uintptr_t)shell->kernelstack + PAGE_SIZE * 6;
 
- set_kernel_stack(shell->kernelstack); // Set the kernel stack pointer for this process
+ //set_kernel_stack(shell->kernelstack); // Set the kernel stack pointer for this process
 
 
    //current_process = shell; // Set the current process to the shell
 
    
-  // scheduler_first_switch();
+  scheduler_first_switch();
 
 
    
     // Switch to user mode and jump to user program start
-    cpu_enter_user_mode((uintptr_t)shell->entry_point, shell->user_stack_top);
+   // cpu_enter_user_mode((uintptr_t)shell->entry_point, shell->user_stack_top);
 
 }
 

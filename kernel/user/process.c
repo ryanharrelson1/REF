@@ -9,6 +9,8 @@ process_t *current_process = 0;
 
 process_t* process_list = NULL;
 
+static uint32_t next_pid = 1; 
+
 
 void scheduler_tick();
 
@@ -111,6 +113,8 @@ process_t* user_space_init(uintptr_t entry_point, size_t size) {
 
      memsets(proc, 0, sizeof(process_t));
 
+      proc->pid = next_pid++;
+
      uintptr_t kernelstack = vmm_alloc_kernel(PAGE_SIZE * 6);
 
 
@@ -194,6 +198,9 @@ process_t* user_space_init(uintptr_t entry_point, size_t size) {
     proc->context.esi = 0;
     proc->context.edi = 0;
     proc->context.ebp = 0;
+
+
+     process_add(proc);
     
 
       return proc;
@@ -214,53 +221,66 @@ void proccess_load_user_bin(process_t* proc, const uint8_t* bin_start, size_t bi
 
     proc->entry_point = (uintptr_t)user_virt; // Set entry point to start of user binary
 
-    
-
-
 }
 
 
 
 void scheduler_tick(uintptr_t* stack_frame){
 
+   
+
     current_process->context.eax = stack_frame[7];
     current_process->context.ecx = stack_frame[6];
     current_process->context.edx = stack_frame[5];
     current_process->context.ebx = stack_frame[4];
-    current_process->context.esp = stack_frame[3];  // kernel esp
     current_process->context.ebp = stack_frame[2];
     current_process->context.esi = stack_frame[1];
     current_process->context.edi = stack_frame[0];
 
 
-      current_process->context.eip     = stack_frame[8];
-    current_process->context.cs      = stack_frame[9];
-    current_process->context.eflags  = stack_frame[10];
+    current_process->context.eip = stack_frame[8];
+    current_process->context.cs = stack_frame[9];
+    current_process->context.eflags = stack_frame[10];
     current_process->context.useresp = stack_frame[11];
-    current_process->context.ss      = stack_frame[12];
+    current_process->context.ss = stack_frame[12];
 
      if (current_process->state == TASK_RUNNING) {
         current_process->state = TASK_READY;
     }
 
+       process_t* next_process = current_process->next;
 
-    process_t* next_process = current_process->next;
 
-    while (next_process && next_process->state != TASK_READY) {
-        next_process = next_process->next;
-
-        if( next_process == current_process) {
-            // No other ready process found, stay in current process
-            return;
+       while (next_process != current_process && next_process->state != TASK_READY) {
+         next_process = next_process->next;
         }
-    }
 
-     current_process = next_process;
+          write_serial_string("[SCHED] Current PID: ");
+     serial_write_hex32(current_process->pid);
+        write_serial_string("\n");
 
-         cpu_load_cr3((uintptr_t)current_process->page_directory);
+       if (next_process->state != TASK_READY || next_process == current_process) {
+
+
+            write_serial_string("[SCHED] No other ready process found. Continuing with PID: ");
+           serial_write_hex32(current_process->pid);
+         write_serial_string("\n");
+        return;
+        }
+
+           write_serial_string("[SCHED] Switching to PID: ");
+        serial_write_hex32(next_process->pid);
+         write_serial_string("\n");
+     
+
+
+
+     
+          current_process = next_process;
+        cpu_load_cr3((uintptr_t)current_process->page_directory);
 
    
-       set_kernel_stack(current_process->kernelstack + PAGE_SIZE * 6);
+       set_kernel_stack(current_process->kernelstack);
 
 
       // Restore context into the current stack
@@ -268,7 +288,6 @@ void scheduler_tick(uintptr_t* stack_frame){
     stack_frame[6] = current_process->context.ecx;
     stack_frame[5] = current_process->context.edx;
     stack_frame[4] = current_process->context.ebx;
-    stack_frame[3] = current_process->context.esp;
     stack_frame[2] = current_process->context.ebp;
     stack_frame[1] = current_process->context.esi;
     stack_frame[0] = current_process->context.edi;
@@ -292,29 +311,22 @@ void scheduler_first_switch() {
     cpu_load_cr3((uintptr_t)current_process->page_directory);
     set_kernel_stack(current_process->kernelstack);
 
-
     
 
     current_process->state = TASK_RUNNING;
 
-    
+ 
 
     
     uintptr_t* stack = (uintptr_t*)(current_process->kernelstack);
 
         // Build the iret frame on the kernel stack
 
-        *(--stack) = current_process->context.eip;     // EIP
-        *(--stack) = current_process->context.cs;      // CS
+        *(--stack) = current_process->context.ss;     // EIP
+        *(--stack) = current_process->context.useresp;      // CS
         *(--stack) = current_process->context.eflags;  // EFLAGS
-        *(--stack) = current_process->context.useresp; // ESP
-        *(--stack) = current_process->context.ss;      // SS (highest address)
-
-
-   
-
-
-    
+        *(--stack) = current_process->context.cs; // ESP
+        *(--stack) = current_process->context.eip;      // SS (highest address)
 
     // Load stack and return to user mode
    asm volatile (
@@ -333,6 +345,48 @@ void scheduler_first_switch() {
 }
 
 
+
+
+void process_add(process_t* proc) {
+    if (!process_list) {
+        // First process: points to itself
+        process_list = proc;
+        proc->next = proc;
+         current_process = proc;
+    } else {
+        // Insert at end of list (before head for circular)
+        process_t* temp = process_list;
+        while (temp->next != process_list) {
+            temp = temp->next;
+        }
+        temp->next = proc;
+        proc->next = process_list;
+    }
+}
+
+
+
+void process_remove(process_t* proc) {
+    if (!process_list) return;
+
+    if (process_list == proc && proc->next == proc) {
+        // Only one process
+        process_list = NULL;
+        return;
+    }
+
+    process_t* prev = process_list;
+    while (prev->next != proc && prev->next != process_list) {
+        prev = prev->next;
+    }
+
+    if (prev->next == proc) {
+        prev->next = proc->next;
+        if (proc == process_list) {
+            process_list = proc->next;
+        }
+    }
+}
 
 
 
