@@ -14,6 +14,7 @@
 #include "user/user_mode.h"
 #include "memset.h"
 #include "handlers/timer.h"
+#include "vga/vga.h"
 
 #define PAGE_SIZE 4096
 #define PAGE_PRESENT 0x1
@@ -38,7 +39,7 @@ extern char _binary_user_mode_bin_start[];
 extern char _binary_user_mode_bin_end[];
 
 
-
+static inline void vga_put_char_simple(char c);
 
 
 // do not remove this line it breaks the usermode jmp
@@ -55,6 +56,7 @@ void kernel_main() {
 // Disable interrupts
 gdt_install();
 
+
    // Disable interrupts
     idt_install();
     pit_init();
@@ -63,7 +65,11 @@ gdt_install();
     parse_memory_map(multiboot_info_ptr);
     paging_init();
     vmm_init();
-    user_init();
+    vga_init();
+    
+   
+    
+   user_init();
 
 
 
@@ -95,9 +101,6 @@ gdt_install();
         asm volatile ("hlt");
     }
 }
-
-
-
 
 
 

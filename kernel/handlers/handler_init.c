@@ -9,6 +9,7 @@ extern void isr_page_fault_stub(void);
 extern void isr_generic_exception_stub(void);
 extern void isr_syscall();
 extern void isr_timer_stub(void);
+extern void isr_keyboard_stub(void);
 
 
 
@@ -21,10 +22,11 @@ void handlers_install(void){
     idt_set_gate(14, (uint32_t)isr_page_fault_stub, 0x08, 0x8E);
     idt_set_gate(0x80, (uint32_t)isr_syscall, 0x08, 0xEE);
     idt_set_gate(32, (uintptr_t)isr_timer_stub, 0x08, 0x8E);
+    idt_set_gate(33, (uintptr_t)isr_keyboard_stub, 0x08, 0x8E);
 
 
     for (int i = 0; i < 256; i++) {
-        if (i != 0 && i != 8 && i != 13 && i != 14 && i != 0x80 && i != 32) {
+        if (i != 0 && i != 8 && i != 13 && i != 14 && i != 0x80 && i != 32 && i != 33) {
             idt_set_gate(i, (uint32_t)isr_generic_exception_stub, 0x08, 0x8E);
         }
     }

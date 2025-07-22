@@ -155,11 +155,6 @@ setup_paging:
     add edi, 769*4
     mov [edi], eax
 
-    mov eax, 0x000B8000 | 0x3        ; physical VGA + present+RW
-    mov edi, page_table_high
-    add edi, 952 * 4                 ; 952th entry in kernel's page table
-    mov [edi], eax
-
      mov eax, page_dir
     or eax, 0x3
     mov edi, page_dir

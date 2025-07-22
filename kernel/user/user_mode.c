@@ -11,8 +11,9 @@
 #define RECURSIVE_PAGING_BASE 0xFFFFF000
 #define PAGE_TABLES_BASE      0xFFC00000
 
-extern uint8_t _binary_user_mode_bin_start[];
-extern uint8_t _binary_user_mode_bin_end[];
+extern uint8_t _binary_userprog_elf_start[];
+extern uint8_t _binary_userprog_elf_end[];
+extern uint8_t _binary_userprog_elf_size[];
 
 extern process_t* current_process;
 
@@ -31,16 +32,20 @@ extern process_t* current_process;
 
 void user_init() {
  
-   size_t bin_size = (uintptr_t)_binary_user_mode_bin_end - (uintptr_t)_binary_user_mode_bin_start;
+   size_t bin_size = (uintptr_t)_binary_userprog_elf_end - (uintptr_t)_binary_userprog_elf_start;
     if (bin_size == 0) {
         panic("User mode binary is empty");
     }
 
-    process_t* shell = user_space_init((uintptr_t)_binary_user_mode_bin_start, bin_size);
+     
 
-    process_t* test = user_space_init((uintptr_t)_binary_user_mode_bin_start, bin_size);
-    process_t* test1 = user_space_init((uintptr_t)_binary_user_mode_bin_start, bin_size);
-    process_t* test2 = user_space_init((uintptr_t)_binary_user_mode_bin_start, bin_size);
+    
+
+    process_t* shell = user_space_init((uintptr_t)_binary_userprog_elf_start, bin_size);
+
+   //process_t* test = user_space_init((uintptr_t)_binary_userprog_elf_start, bin_size);
+
+
 
     // Load the process's page directory (CR3)
     //cpu_load_cr3((uintptr_t)shell->page_directory);

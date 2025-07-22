@@ -78,6 +78,7 @@ void vmm_free_user(void* addr, uint32_t size, process_t* proc);
 void* vmm_temp_map(uintptr_t phys, uint32_t flags);
 void vmm_temp_unmap(void* virt_addr, bool freephys);
 uint32_t* vmm_create_process_page_directory();
+void* vmm_alloc_user_at(uintptr_t virt_addr, uint32_t size, process_t* proc);
 
 void vmm_init_process(process_t* proc);
 

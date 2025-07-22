@@ -65,12 +65,12 @@ vmm.o: kernel/vmm/vmm.c kernel/vmm/vmm.h
 user.o: kernel/user/user_mode.c kernel/user/user_mode.h
 	i686-elf-gcc -m32 -ffreestanding -g -c kernel/user/user_mode.c -o user.o
 
-user_mode.bin: kernel/user/user.asm
-	nasm -f bin -o user_mode.bin kernel/user/user.asm
 
-user_mode.o: user_mode.bin
-	i686-elf-objcopy -I binary -O elf32-i386 -B i386 \
-	--rename-section .data=.userbin user_mode.bin user_mode.o
+
+userprog.o : kernel/user/user.c
+	i686-elf-gcc -m32 -ffreestanding -fno-pie -fno-pic -g -c kernel/user/user.c -o userprog.o
+
+
 
 syscall.o : kernel/handlers/syscall.c
 	i686-elf-gcc -m32 -ffreestanding -g -c kernel/handlers/syscall.c -o syscall.o
@@ -81,8 +81,23 @@ process.o: kernel/user/process.c kernel/user/process.h
 timer.o: kernel/handlers/timer.c kernel/handlers/timer.h
 	i686-elf-gcc -m32 -ffreestanding -g -c kernel/handlers/timer.c -o timer.o
 
-kernel.elf: kernel_main.o boot.o paging.o io.o serial.o memory_map.o memset.o panic.o pmm.o gdt.o gdt_flush.o tss.o idt.o idt_flush.o pic.o exception.o handlers.o isr_stub.o vmm.o user.o user_mode.o syscall.o process.o timer.o
-	i686-elf-ld -T linker.ld -o kernel.elf boot.o kernel_main.o paging.o io.o serial.o memory_map.o memset.o panic.o pmm.o gdt.o gdt_flush.o tss.o idt.o idt_flush.o pic.o exception.o handlers.o isr_stub.o vmm.o user.o user_mode.o syscall.o process.o timer.o
+vga.o: kernel/vga/vga.c kernel/vga/vga.h
+	i686-elf-gcc -m32 -ffreestanding -g -c kernel/vga/vga.c -o vga.o
+
+keyboard.o: kernel/handlers/keyboard.c
+	i686-elf-gcc -m32 -ffreestanding -g -c kernel/handlers/keyboard.c -o keyboard.o
+
+
+
+userprog.elf: userprog.o
+	i686-elf-ld -m elf_i386 -T kernel/user/user.ld -o userprog.elf userprog.o
+
+userprog_embedded.o: userprog.elf
+	i686-elf-objcopy -I binary -O elf32-i386 -B i386 \
+	 userprog.elf userprog_embedded.o
+
+kernel.elf: kernel_main.o boot.o paging.o io.o serial.o memory_map.o memset.o panic.o pmm.o gdt.o gdt_flush.o tss.o idt.o idt_flush.o pic.o exception.o handlers.o isr_stub.o vmm.o user.o  syscall.o process.o timer.o userprog_embedded.o vga.o keyboard.o
+	i686-elf-ld -T linker.ld -o kernel.elf boot.o kernel_main.o paging.o io.o serial.o memory_map.o memset.o panic.o pmm.o gdt.o gdt_flush.o tss.o idt.o idt_flush.o pic.o exception.o handlers.o isr_stub.o vmm.o user.o  syscall.o process.o timer.o userprog_embedded.o vga.o keyboard.o
 
 iso: kernel.elf	
 	mkdir -p isodir/boot/grub

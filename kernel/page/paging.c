@@ -43,32 +43,18 @@ uint32_t* get_page_table_virt(uint32_t pd_index) {
 }
 
 void kernel_page_map(uintptr_t virt, uintptr_t phys, uint32_t flags){
-     write_serial_string("[paging_map_page] Called with virt=");
-    serial_write_hex32((uint32_t)virt);
-    write_serial_string(", phys=");
-    serial_write_hex32((uint32_t)phys);
-    write_serial_string(", flags=");
-    serial_write_hex32(flags);
-    write_serial_string("\n");
 
     uint32_t pd_index = (virt >> 22) & 0x3FF;
     uint32_t pt_index = (virt >> 12) & 0x3FF;
 
-    write_serial_string("[paging_map_page] Calculated pd_index=0x");
-    serial_write_hex32(pd_index);
-    write_serial_string(", pt_index=0x");
-    serial_write_hex32(pt_index);
-    write_serial_string("\n");
 
 
     uint32_t pd_entry = RECURSIVE_PAGE_DIR[pd_index];
-    write_serial_string("[paging_map_page] PDE value: 0x");
-    serial_write_hex32(pd_entry);
-    write_serial_string("\n");
+
 
 
     if(!(pd_entry & PDE_PRESENT)){
-         write_serial_string("[paging_map_page] PDE not present, allocating new page table\n");
+
       uint32_t pt_phys = pmm_alloc_page(); 
         if (!pt_phys ) {
       panic("Out of memory: failed to allocate page table");
@@ -83,9 +69,7 @@ void kernel_page_map(uintptr_t virt, uintptr_t phys, uint32_t flags){
               
 
         
-         write_serial_string("[paging_map_page] New PT phys addr: 0x");
-        serial_write_hex32((uint32_t)pt_phys);
-        write_serial_string("\n");
+
        RECURSIVE_PAGE_DIR[pd_index] = pt_phys | pde_flags;
         flush_tlb();
 
@@ -95,29 +79,13 @@ void kernel_page_map(uintptr_t virt, uintptr_t phys, uint32_t flags){
 
         memsets(pt_virt, 0, PAGE_SIZE);
 
-         serial_write_hex32((uint32_t)pt_virt);
 
-         write_serial_string("[paging_map_page] Updated PDE at index ");
-        serial_write_hex32(pd_index);
-        write_serial_string(" to 0x");
-        serial_write_hex32(RECURSIVE_PAGE_DIR[pd_index]);
-        write_serial_string("\n");  
+
     
     }
 
     uint32_t* page_table = get_page_table_virt(pd_index);
-     write_serial_string("[paging_map_page] Page table address: 0x");
-    serial_write_hex32((uint32_t)page_table);
-    write_serial_string("\n");
-    
 
-     write_serial_string("[paging_map_page] Setting PTE at index ");
-    serial_write_hex32(pt_index);
-    write_serial_string(" to phys addr 0x");
-    serial_write_hex32((phys & ~0xFFF));
-    write_serial_string(" with flags 0x");
-    serial_write_hex32(flags & 0xFFF);
-    write_serial_string("\n");
 
     page_table[pt_index] = (phys & ~0xFFF) | (flags & 0xFFF) | PTE_PRESENT;
     
@@ -128,27 +96,12 @@ void kernel_page_map(uintptr_t virt, uintptr_t phys, uint32_t flags){
 
 void user_page_map(uint32_t* pd_phys, uintptr_t virt, uintptr_t phys, uint32_t flags) {
 
-    write_serial_string("[paging_map_page_for_pd] Called with virt=");
-    serial_write_hex32((uint32_t)virt);
-    write_serial_string(", phys=");
-    serial_write_hex32((uint32_t)phys);
-    write_serial_string(", flags=");
-    serial_write_hex32(flags);
-    write_serial_string("\n");
-    serial_write_hex32(pd_phys);
   
     uint32_t pd_index = (virt >> 22) & 0x3FF;
     uint32_t pt_index = (virt >> 12) & 0x3FF;
 
     // Map the page directory temporarily
       uint32_t* pd_virt = (uint32_t*)vmm_temp_map((uintptr_t)pd_phys, PAGE_PRESENT | PAGE_WRITE);
-    
-    write_serial_string("[paging_map_page_for_pd] pd_index=0x");
-    serial_write_hex32(pd_index);
-    write_serial_string(", pt_index=0x");
-    serial_write_hex32(pt_index);
-    write_serial_string("\n");
-  serial_write_hex32(pd_virt);
 
     uintptr_t pt_phys;
     uint32_t* pt_virt;
@@ -183,18 +136,11 @@ void user_page_map(uint32_t* pd_phys, uintptr_t virt, uintptr_t phys, uint32_t f
 
 void paging_unmap_page(uintptr_t virtual_addr, bool free_phys) {
 
-    write_serial_string("[paging_unmap_page] Called with virtual_addr=0x");
-    serial_write_hex32((uint32_t)virtual_addr);
-    write_serial_string("\n");
 
     uint32_t pd_index = (virtual_addr >> 22) & 0x3FF;
     uint32_t pt_index = (virtual_addr >> 12) & 0x3FF;
 
-     write_serial_string("[paging_unmap_page] pd_index=0x");
-    serial_write_hex32(pd_index);
-    write_serial_string(", pt_index=0x");
-    serial_write_hex32(pt_index);
-    write_serial_string("\n");
+
 
     if (!(RECURSIVE_PAGE_DIR[pd_index] & PDE_PRESENT)) {
         write_serial_string("[paging_unmap_page] PDE not present, nothing to unmap\n");
@@ -203,14 +149,10 @@ void paging_unmap_page(uintptr_t virtual_addr, bool free_phys) {
 
    uint32_t* pt = get_page_table_virt(pd_index);
 
-    write_serial_string("[paging_unmap_page] Page table address: 0x");
-    serial_write_hex32((uint32_t)pt);
-    write_serial_string("\n");
+
     uint32_t entry = pt[pt_index];
 
-    write_serial_string("[paging_unmap_page] PTE value: 0x");
-    serial_write_hex32(entry);
-    write_serial_string("\n");
+
 
 
     if (!(entry & PTE_PRESENT)) {
@@ -219,15 +161,11 @@ void paging_unmap_page(uintptr_t virtual_addr, bool free_phys) {
     }
 
     uintptr_t phys_addr = entry & ~0xFFF;
-    write_serial_string("[paging_unmap_page] Freeing physical page at 0x");
-    serial_write_hex32((uint32_t)phys_addr);
-    write_serial_string("\n");
+
 
      if (free_phys) {
         uintptr_t phys_addr = entry & ~0xFFF;
-        write_serial_string("[paging_unmap_page] Freeing physical page at 0x");
-        serial_write_hex32((uint32_t)phys_addr);
-        write_serial_string("\n");
+
 
         pmm_free_page((void*)phys_addr);  // Free the physical frame
     }
@@ -242,6 +180,8 @@ void paging_init() {
 
     page_dir[0] = 0;
     flush_tlb();
+
+    kernel_page_map(0xC00B8000,0x000B8000, PAGE_PRESENT |PAGE_WRITE);
 }
 
 void paging_run_tests() {

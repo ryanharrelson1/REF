@@ -11,6 +11,8 @@
         "stdbool.h": "c",
         "pmm.h": "c",
         "tss.h": "c",
-        "panic.h": "c"
+        "panic.h": "c",
+        "random": "c",
+        "cstdint": "cpp"
     }
 }

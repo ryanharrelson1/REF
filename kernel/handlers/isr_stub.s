@@ -6,9 +6,10 @@ extern isr_double_fault_stub_handler
 extern isr_gpf_stub_handler
 extern isr_page_fault_stub_handler
 extern isr_generic_exception_stub_handler
-extern syscall
+extern syscall_dispatch
 extern tss_entry
 extern scheduler_tick
+extern keyboard_handler
 
 global isr_divide_by_zero_stub
 isr_divide_by_zero_stub:
@@ -63,13 +64,29 @@ isr_generic_exception_stub:
 global isr_syscall
 
 isr_syscall:
-   cli
-    pushad
-    call syscall
-    popad
-    sti
-    iret
+    cli
+    pusha
 
+
+    ; Set kernel data segment
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+
+    ; Pass struct pointer
+    push esp
+    call syscall_dispatch
+    add esp, 4
+
+
+     popa
+
+     mov al, 0x20
+    out 0x20, al
+
+    iret
 
 global isr_timer_stub
 
@@ -88,7 +105,7 @@ isr_timer_stub:
     mov es, ax
     mov fs, ax
     mov gs, ax
-
+    lea eax, [esp + 16]
     push eax
     call scheduler_tick
     add esp, 4
@@ -103,5 +120,15 @@ isr_timer_stub:
     mov al, 0x20
     out 0x20, al
 
-    sti                     ; Re-enable interrupts
+  
     iret 
+
+
+    global isr_keyboard_stub
+isr_keyboard_stub:
+    cli
+    pusha
+    call keyboard_handler
+    popa
+    sti
+    iretd

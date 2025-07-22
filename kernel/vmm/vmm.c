@@ -29,7 +29,7 @@ static inline uint32_t align_up(uint32_t val) {
 
 static void vmm_free_internal(void* addr, uint32_t size, vmm_region_t** list);
 
- 
+
 
 vmm_region_t* vmm_region_alloc() {
 
@@ -326,6 +326,78 @@ void* vmm_alloc_user(uint32_t size, process_t* proc) {
     write_serial_string("\n");
 
     return NULL;
+}
+
+void* vmm_alloc_user_at(uintptr_t virt_addr, uint32_t size, process_t* proc) {
+    if (!proc) panic("vmm_alloc_user_at: NULL process");
+
+    uint32_t aligned_size = align_up(size);
+    uintptr_t aligned_addr = virt_addr & ~0xFFF;
+
+    for (uint32_t offset = 0; offset < aligned_size; offset += PAGE_SIZE) {
+        uintptr_t phys = pmm_alloc_page();
+        if (!phys) panic("vmm_alloc_user_at: Out of physical memory");
+
+        user_page_map(proc->page_directory, aligned_addr + offset, phys, PAGE_PRESENT | PAGE_WRITE | PAGE_USER);
+
+        write_serial_string("[vmm_alloc_user_at] Mapped virtual ");
+        serial_write_hex32(aligned_addr + offset);
+        write_serial_string(" -> physical ");
+        serial_write_hex32(phys);
+        write_serial_string("\n");
+    }
+
+
+    vmm_region_t* curr = proc->user_space_free_list;
+    vmm_region_t* prev = NULL;
+
+
+     while (curr) {
+        uintptr_t region_start = curr->start;
+        uintptr_t region_end = region_start + curr->size;
+
+        uintptr_t alloc_start = aligned_addr;
+        uintptr_t alloc_end = aligned_addr + aligned_size;
+
+        if (alloc_start >= region_start && alloc_end <= region_end) {
+            // Allocation is fully inside this region
+
+            if (alloc_start == region_start && alloc_end == region_end) {
+                // Fully consumes the region
+                if (prev) prev->next = curr->next;
+                else proc->user_space_free_list = curr->next;
+                vmm_region_free(curr);
+            }
+            else if (alloc_start == region_start) {
+                // At beginning, trim from start
+                curr->start += aligned_size;
+                curr->size -= aligned_size;
+            }
+            else if (alloc_end == region_end) {
+                // At end, trim from end
+                curr->size -= aligned_size;
+            }
+            else {
+                // In the middle: split region into two
+                vmm_region_t* new_region = vmm_region_alloc();
+                if (!new_region) panic("vmm_alloc_user_at: Out of VMM region slab nodes");
+
+                new_region->start = alloc_end;
+                new_region->size = region_end - alloc_end;
+                new_region->next = curr->next;
+
+                curr->size = alloc_start - region_start;
+                curr->next = new_region;
+            }
+
+            break; // done
+        }
+
+        prev = curr;
+        curr = curr->next;
+    }
+
+    return (void*)aligned_addr;
 }
 
 
